@@ -1,0 +1,28 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    container_name: meta-ads-dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
+      META_API_VERSION: ${META_API_VERSION}
+      SYNC_SECRET: ${SYNC_SECRET}
+
+  cron:
+    build: ./cron
+    container_name: meta-ads-sync-cron
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      SYNC_SECRET: ${SYNC_SECRET}
+      SYNC_SCHEDULE: ${SYNC_SCHEDULE:-*/30 * * * *}
