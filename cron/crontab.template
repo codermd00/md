@@ -1,0 +1,1 @@
+${SYNC_SCHEDULE} curl -s -X POST -H "x-sync-secret: ${SYNC_SECRET}" http://app:3000/api/sync/full >> /var/log/meta-sync.log 2>&1
