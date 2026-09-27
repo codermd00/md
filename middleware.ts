@@ -35,13 +35,21 @@ export async function middleware(request: NextRequest) {
   );
 
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  data: { user },
+  error,
+} = await supabase.auth.getUser();
 
-  if (!user) {
-    const loginUrl = new URL("/login", request.url);
-    return NextResponse.redirect(loginUrl);
-  }
+console.log("AUTH DEBUG:", {
+  hasUser: !!user,
+  userId: user?.id,
+  error: error?.message,
+  cookies: request.cookies.getAll().map((c) => c.name),
+});
+
+if (!user) {
+  const loginUrl = new URL("/login", request.url);
+  return NextResponse.redirect(loginUrl);
+}
 
   return response;
 }
