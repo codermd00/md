@@ -1,6 +1,10 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     container_name: meta-ads-dashboard
     restart: unless-stopped
     ports:
@@ -21,4 +25,4 @@ services:
       - app
     environment:
       SYNC_SECRET: ${SYNC_SECRET}
-      SYNC_SCHEDULE: ${SYNC_SCHEDULE:-*/15 * * * *}
+      SYNC_SCHEDULE: ${SYNC_SCHEDULE:-*/30 * * * *}
