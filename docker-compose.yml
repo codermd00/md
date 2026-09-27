@@ -16,6 +16,9 @@ services:
       META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
       META_API_VERSION: ${META_API_VERSION}
       SYNC_SECRET: ${SYNC_SECRET}
+    networks:
+      - default
+      - internet
 
   cron:
     build: ./cron
@@ -26,3 +29,11 @@ services:
     environment:
       SYNC_SECRET: ${SYNC_SECRET}
       SYNC_SCHEDULE: ${SYNC_SCHEDULE:-*/30 * * * *}
+    networks:
+      - default
+      - internet
+
+networks:
+  internet:
+    external: true
+    name: bridge
