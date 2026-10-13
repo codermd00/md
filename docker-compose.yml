@@ -1,0 +1,30 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    container_name: ads-dash
+    restart: unless-stopped
+    dns: [8.8.8.8, 1.1.1.1]
+    ports: ["3000:3000"]
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
+      META_API_VERSION: ${META_API_VERSION:-v24.0}
+      SYNC_SECRET: ${SYNC_SECRET}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Baghdad}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+
+  cron:
+    build: ./cron
+    container_name: ads-dash-cron
+    restart: unless-stopped
+    dns: [8.8.8.8, 1.1.1.1]
+    depends_on: [app]
+    environment:
+      SYNC_SECRET: ${SYNC_SECRET}
