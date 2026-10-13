@@ -6,10 +6,11 @@ export const dynamic = "force-dynamic";
 export default async function ContentPage() {
   const sb = createServerSupabase();
   const [{ data: clients }, { data: posts }] = await Promise.all([
-    sb.from("clients").select("id,name,ig_user_id,run_posts").eq("run_posts", true).order("name"),
+    sb.from("clients").select("id,name,ig_user_id,run_posts,account_status").eq("run_posts", true).order("name"),
     sb.from("posts").select("*").eq("hidden", false).order("posted_at", { ascending: false }).limit(300),
   ]);
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const statusOf = new Map((clients || []).map((c: any) => [c.id, c.account_status || ""]));
   const nameOf = new Map((clients || []).map((c: any) => [c.id, c.name]));
   const cards: PostCard[] = (posts || []).filter((p: any) => nameOf.has(p.client_id)).map((p: any) => ({
     id: p.id, clientId: p.client_id, clientName: nameOf.get(p.client_id) || "", igMediaId: p.ig_media_id, shortcode: p.shortcode || "",
@@ -18,7 +19,7 @@ export default async function ContentPage() {
     eligible: p.eligible, reason: p.ineligible_reason || "", status: p.status, mode: p.mode || "",
     budget: p.budget != null ? String(p.budget) : "", days: p.days != null ? String(p.days) : "",
     campId: p.meta_campaign_id || "", campName: p.meta_campaign_name || "", adsetId: p.meta_adset_id || "", adsetName: p.meta_adset_name || "",
-    error: p.error || "",
+    error: p.error || "", accountStatus: statusOf.get(p.client_id) || "",
   }));
   return <ContentView clients={(clients || []).map((c: any) => ({ id: c.id, name: c.name, hasIg: !!c.ig_user_id }))} posts={cards} />;
 }

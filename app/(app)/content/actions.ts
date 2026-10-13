@@ -182,17 +182,47 @@ export async function runPost(id: string): Promise<{ ok: boolean; message: strin
       const { data: acct } = await db.from("clients").select("currency").eq("id", c.id).maybeSingle();
       const cur = String((acct as any)?.currency || "USD").toUpperCase();
       let src: any = {};
-      try { src = await graph(p.meta_adset_id, { fields: "daily_budget,lifetime_budget" }); } catch {}
-      const copy = await graphPost<any>(`${p.meta_adset_id}/copies`, { deep_copy: false, status_option: "PAUSED" });
-      adsetId = String(copy.copied_adset_id || copy.ad_object_ids?.[0]?.copied_id || "");
-      if (!adsetId) throw new Error("Meta returned no copy ID");
-      await step(db, id, "copy", true, adsetId);
-      await sleep(10000);
+      try {
+        src = await graph(p.meta_adset_id, { fields: "name,campaign_id,daily_budget,lifetime_budget,targeting,optimization_goal,billing_event,bid_strategy,bid_amount,promoted_object,destination_type,pacing_type,attribution_spec" });
+      } catch {}
+      // Meta still requires "explore" next to "explore_home" in Instagram positions
+      const fixTargeting = (t: any) => {
+        if (!t) return null;
+        const pos: string[] = t.instagram_positions || [];
+        if (pos.includes("explore_home") && !pos.includes("explore")) return { ...t, instagram_positions: [...pos, "explore"] };
+        return null;
+      };
+      const fixed = fixTargeting(src.targeting);
       const h = await dayHours(db);
       endIso = new Date(Date.now() + Number(p.days) * h * 3600e3).toISOString();
       const upd: Record<string, any> = { name: p.shortcode, lifetime_budget: minor(Number(p.budget), cur), end_time: endIso, status: "ACTIVE" };
       if (src.daily_budget && Number(src.daily_budget) > 0) upd.daily_budget = 0;
-      await graphPost(adsetId, upd);
+      if (fixed) upd.targeting = fixed;
+      let copied = "";
+      try {
+        const copy = await graphPost<any>(`${p.meta_adset_id}/copies`, { deep_copy: false, status_option: "PAUSED" });
+        copied = String(copy.copied_adset_id || copy.ad_object_ids?.[0]?.copied_id || "");
+        if (!copied) throw new Error("Meta returned no copy ID");
+      } catch (e: any) {
+        // source ad set fails Meta's validation: build the new ad set from its settings instead
+        if (!/explore/i.test(e?.message || "") || !src.campaign_id) throw e;
+        const body: Record<string, any> = {
+          name: p.shortcode, campaign_id: src.campaign_id, targeting: fixed || src.targeting, optimization_goal: src.optimization_goal,
+          billing_event: src.billing_event, bid_strategy: src.bid_strategy, bid_amount: src.bid_amount, promoted_object: src.promoted_object,
+          destination_type: src.destination_type, pacing_type: src.pacing_type, attribution_spec: src.attribution_spec,
+          lifetime_budget: upd.lifetime_budget, end_time: endIso, status: "ACTIVE",
+        };
+        for (const k of Object.keys(body)) if (body[k] === undefined || body[k] === null) delete body[k];
+        const made = await graphPost<any>(`act_${c.ad_account_id}/adsets`, body);
+        adsetId = String(made.id);
+        await step(db, id, "create_adset", true, adsetId);
+      }
+      if (copied) {
+        adsetId = copied;
+        await step(db, id, "copy", true, adsetId);
+        await sleep(10000);
+        await graphPost(adsetId, upd);
+      }
       await step(db, id, "edit_adset", true, `budget ${p.budget} · ${p.days}d`);
     }
   } catch (e: any) { return fail(p.mode === "copy" ? "copy" : "adset", e?.message || ""); }

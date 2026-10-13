@@ -7,7 +7,7 @@ export type PostCard = {
   id: string; clientId: string; clientName: string; igMediaId: string; shortcode: string; permalink: string; mediaType: string;
   caption: string; username: string; thumb: string; postedAt: string | null; eligible: boolean | null; reason: string;
   status: "ready" | "running" | "done" | "skip" | "failed"; mode: "direct" | "copy" | ""; budget: string; days: string;
-  campId: string; campName: string; adsetId: string; adsetName: string; error: string;
+  campId: string; campName: string; adsetId: string; adsetName: string; error: string; accountStatus: string;
 };
 
 const TABS = [["all", "All"], ["ready", "Ready"], ["running", "Running"], ["done", "Done"], ["skip", "Skip"], ["failed", "Failed"]] as const;
@@ -156,6 +156,7 @@ function PostModal({ post, onClose, onDone }: { post: PostCard; onClose: () => v
           </div>
         </div>
         {post.caption && <div className="sub" dir="auto" style={{ margin: "10px 0 0", maxHeight: 54, overflow: "hidden" }}>{post.caption}</div>}
+        {post.accountStatus && post.accountStatus !== "active" && <div className="fnd bad" style={{ marginTop: 8 }}><b>Ad account: {post.accountStatus.replace(/_/g, " ")}</b></div>}
         {post.error && <div className="fnd bad" style={{ marginTop: 8 }}><div className="c" dir="auto">{post.error}</div></div>}
 
         <div className="grid g2" style={{ marginTop: 14 }}>
