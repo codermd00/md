@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncAll, syncClient } from "@/lib/sync";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { runDueAlerts } from "@/lib/alerts";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -13,6 +14,7 @@ export async function POST(req: NextRequest) {
   }
   if (req.nextUrl.searchParams.get("due")) {
     const db = createAdminSupabase();
+    await runDueAlerts(db).catch(() => "");
     const { data } = await db.from("settings").select("key,value").in("key", ["sync_interval", "last_auto_sync"]);
     const get = (k: string) => (data || []).find((r: any) => r.key === k)?.value;
     const mins = Math.max(Number(get("sync_interval")) || 15, 5);

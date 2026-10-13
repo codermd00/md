@@ -28,6 +28,9 @@ export async function saveSettings(formData: FormData): Promise<{ ok: boolean; m
     if (k === "sync_interval" && n < 5) return { ok: false, message: "Minimum sync interval is 5 minutes" };
     rows.push({ key: k, value: n });
   }
+  const times = String(formData.get("alert_times") || "").split(",").map((t) => t.trim()).filter(Boolean);
+  if (times.some((t) => !/^([01]?\d|2[0-3]):[0-5]\d$/.test(t))) return { ok: false, message: "Alert times must look like 12:00,18:00" };
+  rows.push({ key: "alert_times", value: times.join(",") });
   for (const k of BOOLS) rows.push({ key: k, value: formData.get(k) === "on" });
   const { error } = await sb.from("settings").upsert(rows, { onConflict: "key" });
   if (error) return { ok: false, message: error.message };

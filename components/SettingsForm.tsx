@@ -29,6 +29,10 @@ export default function SettingsForm({ s }: { s: S }) {
         {num("default_days", "Default post days")}
         {num("sync_interval", "Auto sync every (minutes, min 5)")}
       </div>
+      <h3 style={{ marginTop: 20 }}>Cost Alerts</h3>
+      <div style={{ marginTop: 10 }}>
+        <label className="f">Alert times (Baghdad, HH:MM, comma separated)<input name="alert_times" defaultValue={s.alert_times || "12:00,18:00"} /></label>
+      </div>
       <h3 style={{ marginTop: 20 }}>Telegram Notifications</h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
         {chk("notify_new_post", "New post")}
