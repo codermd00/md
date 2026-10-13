@@ -108,7 +108,7 @@ export default function PerformanceView(props: {
     return (
       <>
         <div className="topbar"><div><div className="h1">Performance</div></div></div>
-        <div className="card empty"><b>لا عملاء بعد</b>أضف عميلاً من صفحة Clients أولاً.</div>
+        <div className="card empty"><b>No clients yet</b>Add a client from Clients first.</div>
       </>
     );
   }
@@ -136,13 +136,13 @@ export default function PerformanceView(props: {
             <option value="all">All campaigns</option>
             {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name} · {TYPE_LABEL[c.type]}</option>)}
           </select>
-          <button className="btn" disabled={!picked} onClick={() => picked && openEdit(picked)} title={picked ? "" : "اختر حملة لتعديل هدفها"}>Edit goal</button>
+          <button className="btn" disabled={!picked} onClick={() => picked && openEdit(picked)} title={picked ? "" : "Select a campaign first"}>Edit goal</button>
         </div>
       </div>
 
-      {!client.periodStart && <div className="panel" style={{ marginBottom: 12, color: "var(--orange)" }}>لم تُحدَّد فترة هذا العميل — عدّلها من صفحة Clients لتظهر الأهداف والتقدم.</div>}
+      {!client.periodStart && <div className="panel" style={{ marginBottom: 12, color: "var(--orange)" }}>No period set for this client — edit it in Clients.</div>}
       {campaigns.length === 0 ? (
-        <div className="panel empty"><b>لا حملات صرفت في الفترة</b>تحقق من تواريخ الفترة، أو اضغط Sync now في Clients.</div>
+        <div className="panel empty"><b>No campaigns with spend in this period</b>Check the dates or run Sync now in Clients.</div>
       ) : (
         <>
           <div className="kpis">
@@ -240,7 +240,7 @@ export default function PerformanceView(props: {
                     
                     {(() => {
                       const att = campaigns.filter((c) => c.findings.some((f) => f.level !== "ok"));
-                      if (!att.length) return <div className="fnd ok"><b>لا مشاكل ظاهرة في أي حملة</b></div>;
+                      if (!att.length) return <div className="fnd ok"><b>No issues found</b></div>;
                       return att.map((c) => {
                         const top = c.findings[0];
                         return (
@@ -273,14 +273,11 @@ export default function PerformanceView(props: {
                       <div className="meta">
                         <span><b>{num(c.result)}</b>{p.target ? ` / ${num(p.target)}` : ""}{p.pct !== null ? ` · ${Math.round(p.pct)}%` : ""}</span>
                         <span>Balance <b>{p.balance !== null ? money(p.balance) : "—"}</b></span>
-                        <span>End <b>{p.daysLeft === null ? "—" : `${p.daysLeft}d`}</b></span>
                         <span style={{ marginLeft: "auto" }}>
                           <a style={{ color: "var(--blue2)", fontWeight: 600 }} onClick={(e) => { e.stopPropagation(); openEdit(c); }}>Edit</a>
                         </span>
                       </div>
-                      <div className="src">
-                        {p.target ? `هدف ${TYPE_LABEL[c.type]}: ${num(p.target)}` : "اكتب هدف الحملة (Edit)"}
-                      </div>
+                      {!p.target && <div className="src">No target set</div>}
                     </div>
                   );
                 })}
@@ -297,16 +294,16 @@ export default function PerformanceView(props: {
             <h2>{edit.name}</h2>
             <div className="sub" style={{ marginBottom: 14 }}>{TYPE_LABEL[edit.type]}</div>
             <div className="grid g2">
-              <label className="f">ميزانية الحملة ($)<input type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} /></label>
+              <label className="f">Campaign budget ($)<input type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} /></label>
               <label className="f">
-                {`هدف ${TYPE_LABEL[edit.type]} (نتيجة الحملة)`}
+                {`Target (${TYPE_LABEL[edit.type]})`}
                 <input type="number" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} />
               </label>
             </div>
             {msg && <div className="msg err">{msg}</div>}
             <div className="acts">
-              <button className="btn" onClick={() => setEdit(null)} disabled={pending}>إلغاء</button>
-              <button className="btn pri" onClick={submit} disabled={pending}>{pending ? "..." : "حفظ"}</button>
+              <button className="btn" onClick={() => setEdit(null)} disabled={pending}>Cancel</button>
+              <button className="btn pri" onClick={submit} disabled={pending}>{pending ? "..." : "Save"}</button>
             </div>
           </div>
         </div>

@@ -8,7 +8,7 @@ import { syncPosts } from "@/lib/sync-posts";
 async function requireUser() {
   const sb = createServerSupabase();
   const { data } = await sb.auth.getUser();
-  if (!data.user) throw new Error("غير مصرّح");
+  if (!data.user) throw new Error("Unauthorized");
   return sb;
 }
 
@@ -24,7 +24,7 @@ export async function refreshPosts(clientId?: string, count?: number): Promise<{
     if (n) notes.push(`${c.name}: ${n}`);
   }
   revalidatePath("/content");
-  return notes.length ? { ok: false, message: notes.join(" | ") } : { ok: true, message: "تم التحديث" };
+  return notes.length ? { ok: false, message: notes.join(" | ") } : { ok: true, message: "Updated" };
 }
 
 export type TargetAdSet = { id: string; name: string; status: string; goal: string };
@@ -36,7 +36,7 @@ const GOALS = new Set(["REACH", "POST_ENGAGEMENT", "IMPRESSIONS"]);
 export async function listTargets(clientId: string): Promise<{ ok: boolean; message: string; campaigns: TargetCampaign[] }> {
   const sb = await requireUser();
   const { data: c } = await sb.from("clients").select("ad_account_id,period_start").eq("id", clientId).single();
-  if (!c) return { ok: false, message: "العميل غير موجود", campaigns: [] };
+  if (!c) return { ok: false, message: "Client not found", campaigns: [] };
   try {
     const filter = JSON.stringify([{ field: "effective_status", operator: "IN", value: ["ACTIVE", "PAUSED", "CAMPAIGN_PAUSED", "ADSET_PAUSED", "WITH_ISSUES", "IN_PROCESS"] }]);
     const adsets = await graphAll<any>(`act_${c.ad_account_id}/adsets`, {
@@ -56,9 +56,9 @@ export async function listTargets(clientId: string): Promise<{ ok: boolean; mess
       byCamp.set(s.campaign.id, k);
     }
     const list = [...byCamp.values()].sort((a, b) => (a.status === "ACTIVE" ? 0 : 1) - (b.status === "ACTIVE" ? 0 : 1) || a.name.localeCompare(b.name));
-    return { ok: true, message: list.length ? "" : "لا حملات وصول/تفاعل في هذا الحساب", campaigns: list };
+    return { ok: true, message: list.length ? "" : "No reach/engagement campaigns in this account", campaigns: list };
   } catch (e: any) {
-    return { ok: false, message: e?.message || "فشل الجلب من Meta", campaigns: [] };
+    return { ok: false, message: e?.message || "Meta fetch failed", campaigns: [] };
   }
 }
 
@@ -72,15 +72,15 @@ export async function savePost(i: PostInput): Promise<{ ok: boolean; message: st
   const sb = await requireUser();
   const budget = i.budget.trim() === "" ? null : Number(i.budget);
   const days = i.days.trim() === "" ? null : Math.round(Number(i.days));
-  if (i.mode === "copy" && (!(budget && budget > 0) || !(days && days > 0))) return { ok: false, message: "للنسخ: الميزانية والأيام مطلوبتان" };
-  if (i.mode && !i.meta_adset_id) return { ok: false, message: "اختر المجموعة الإعلانية" };
+  if (i.mode === "copy" && (!(budget && budget > 0) || !(days && days > 0))) return { ok: false, message: "Copy mode needs budget and days" };
+  if (i.mode && !i.meta_adset_id) return { ok: false, message: "Select an ad set" };
   const { error } = await sb.from("posts").update({
     status: i.status, mode: i.mode || null, budget, days,
     meta_campaign_id: i.meta_campaign_id || null, meta_campaign_name: i.meta_campaign_name || null,
     meta_adset_id: i.meta_adset_id || null, meta_adset_name: i.meta_adset_name || null,
   }).eq("id", i.id);
   revalidatePath("/content");
-  return error ? { ok: false, message: error.message } : { ok: true, message: "تم الحفظ" };
+  return error ? { ok: false, message: error.message } : { ok: true, message: "Saved" };
 }
 
 /** حذف = إخفاء (لا يعود عند الجلب القادم) */
@@ -104,20 +104,20 @@ async function dayHours(db: any): Promise<number> {
 
 async function loadRun(db: any, id: string) {
   const { data: p } = await db.from("posts").select("*").eq("id", id).maybeSingle();
-  if (!p) return { err: "المنشور غير موجود" } as const;
+  if (!p) return { err: "Post not found" } as const;
   const { data: c } = await db.from("clients").select("id,name,ad_account_id,page_id,ig_user_id").eq("id", p.client_id).maybeSingle();
-  if (!c) return { err: "العميل غير موجود" } as const;
+  if (!c) return { err: "Client not found" } as const;
   return { p, c } as const;
 }
 
 function validate(p: any, c: any): string {
-  if (p.status !== "ready") return "المنشور ليس بحالة Ready";
-  if (p.eligible === false) return "Check ✗ — Meta ترفض ترويج هذا المنشور";
-  if (!p.mode) return "اختر الطريقة (مباشر أو نسخ)";
-  if (!p.meta_adset_id) return "اختر المجموعة الإعلانية";
-  if (!c.page_id) return "Page ID غير مُدخل للعميل (Clients ← تعديل)";
-  if (!c.ig_user_id) return "Instagram ID غير مُدخل للعميل";
-  if (p.mode === "copy" && (!(Number(p.budget) > 0) || !(Number(p.days) > 0))) return "للنسخ: الميزانية والأيام مطلوبتان";
+  if (p.status !== "ready") return "Post is not Ready";
+  if (p.eligible === false) return "Check ✗ — Meta will not boost this post";
+  if (!p.mode) return "Select a method";
+  if (!p.meta_adset_id) return "Select an ad set";
+  if (!c.page_id) return "Client has no Page ID (edit in Clients)";
+  if (!c.ig_user_id) return "Client has no Instagram ID";
+  if (p.mode === "copy" && (!(Number(p.budget) > 0) || !(Number(p.days) > 0))) return "Copy mode needs budget and days";
   return "";
 }
 
@@ -130,16 +130,16 @@ export async function previewRun(id: string): Promise<{ ok: boolean; message: st
   const { p, c } = r;
   const bad = validate(p, c);
   if (bad) return { ok: false, message: bad, lines: [] };
-  const lines = [`العميل: ${c.name}`, `المنشور: ${p.shortcode} (${p.media_type})`, `الحملة: ${p.meta_campaign_name || p.meta_campaign_id}`];
+  const lines = [`Client: ${c.name}`, `Post: ${p.shortcode} (${p.media_type})`, `Campaign: ${p.meta_campaign_name || p.meta_campaign_id}`];
   if (p.mode === "direct") {
-    lines.push(`الطريقة: إضافة إعلان مباشرة إلى المجموعة «${p.meta_adset_name}»`, "لن تتغير ميزانية المجموعة ولا مدتها.");
+    lines.push(`Method: add ad directly to ad set "${p.meta_adset_name}"`, "Ad set budget and schedule stay unchanged.");
   } else {
     const h = await dayHours(db);
     const end = new Date(Date.now() + Number(p.days) * h * 3600e3);
-    lines.push(`الطريقة: نسخ المجموعة «${p.meta_adset_name}» ثم تشغيلها`, `الميزانية الكلية: ${p.budget}`, `المدة: ${p.days} يوم × ${h} ساعة`,
-      `تنتهي: ${end.toLocaleString("en-GB", { timeZone: "Asia/Baghdad" })} (بغداد)`);
+    lines.push(`Method: copy ad set "${p.meta_adset_name}" and run it`, `Total budget: ${p.budget}`, `Duration: ${p.days} day(s) × ${h}h`,
+      `Ends: ${end.toLocaleString("en-GB", { timeZone: "Asia/Baghdad" })} (Baghdad)`);
   }
-  lines.push("سيُنشأ الإعلان بحالة ACTIVE ويبدأ الصرف فوراً.");
+  lines.push("The ad will be created ACTIVE and start spending immediately.");
   return { ok: true, message: "", lines };
 }
 
@@ -159,7 +159,7 @@ export async function runPost(id: string): Promise<{ ok: boolean; message: strin
 
   // قفل: ينجح مرة واحدة فقط
   const { data: lock } = await db.from("posts").update({ status: "running", error: null, run_at: new Date().toISOString() }).eq("id", id).eq("status", "ready").select("id");
-  if (!lock?.length) return { ok: false, message: "المنشور قيد التشغيل أو شُغّل سابقاً" };
+  if (!lock?.length) return { ok: false, message: "Post is already running or was run" };
 
   const notifyErr = async (msg: string) => { if (await notifyEnabled(db, "notify_error")) await sendTelegram(`❌ Run failed — ${c.name} / ${p.shortcode}\n${msg}`); };
   const fail = async (stepName: string, msg: string, notice?: string) => {
@@ -185,7 +185,7 @@ export async function runPost(id: string): Promise<{ ok: boolean; message: strin
       try { src = await graph(p.meta_adset_id, { fields: "daily_budget,lifetime_budget" }); } catch {}
       const copy = await graphPost<any>(`${p.meta_adset_id}/copies`, { deep_copy: false, status_option: "PAUSED" });
       adsetId = String(copy.copied_adset_id || copy.ad_object_ids?.[0]?.copied_id || "");
-      if (!adsetId) throw new Error("لم يُعد Meta معرّف النسخة");
+      if (!adsetId) throw new Error("Meta returned no copy ID");
       await step(db, id, "copy", true, adsetId);
       await sleep(10000);
       const h = await dayHours(db);
@@ -218,7 +218,7 @@ export async function runPost(id: string): Promise<{ ok: boolean; message: strin
       await sendTelegram(`✅ Ad created — ${c.name}\n${p.shortcode} → ${p.mode === "copy" ? `new ad set (${p.budget}, ${p.days}d)` : p.meta_adset_name}`);
     }
     revalidatePath("/content");
-    return { ok: true, message: "تم إنشاء الإعلان" };
+    return { ok: true, message: "Ad created" };
   } catch (e: any) { return fail("ad", e?.message || ""); }
 }
 

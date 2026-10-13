@@ -5,7 +5,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 async function requireUser() {
   const sb = createServerSupabase();
   const { data } = await sb.auth.getUser();
-  if (!data.user) throw new Error("غير مصرّح");
+  if (!data.user) throw new Error("Unauthorized");
   return sb;
 }
 const done = (ok: boolean, message = "") => { revalidatePath("/tasks"); revalidatePath("/overview"); return { ok, message }; };
@@ -15,7 +15,7 @@ export type TaskInput = { id?: string; title: string; priority: "high" | "med" |
 export async function saveTask(i: TaskInput) {
   const sb = await requireUser();
   const title = i.title.trim();
-  if (!title) return { ok: false, message: "العنوان مطلوب" };
+  if (!title) return { ok: false, message: "Title is required" };
   const row = { title: title.slice(0, 300), priority: i.priority, client_id: i.client_id || null, due_date: i.due_date || null };
   const { error } = i.id ? await sb.from("tasks").update(row).eq("id", i.id) : await sb.from("tasks").insert(row);
   return error ? { ok: false, message: error.message } : done(true);
@@ -34,7 +34,7 @@ export async function deleteTask(id: string) {
 export type NoteInput = { id?: string; title: string; body: string };
 export async function saveNote(i: NoteInput) {
   const sb = await requireUser();
-  if (!i.body.trim() && !i.title.trim()) return { ok: false, message: "اكتب ملاحظة" };
+  if (!i.body.trim() && !i.title.trim()) return { ok: false, message: "Write a note" };
   const row = { title: i.title.trim().slice(0, 200) || null, body: i.body.slice(0, 5000) };
   const { error } = i.id ? await sb.from("notes").update(row).eq("id", i.id) : await sb.from("notes").insert(row);
   return error ? { ok: false, message: error.message } : done(true);

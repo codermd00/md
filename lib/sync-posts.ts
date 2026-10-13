@@ -22,7 +22,7 @@ export async function syncPosts(db: SupabaseClient, c: { id: string; name: strin
   // الحملات المنسوخة المنتهية → Done
   await db.from("posts").update({ status: "done" }).eq("client_id", c.id).eq("status", "running").lt("run_end_time", new Date().toISOString());
   if (c.run_posts === false && !opts?.force) return "";
-  if (!c.ig_user_id) return "posts: Instagram ID غير مُدخل للعميل";
+  if (!c.ig_user_id) return "posts: no Instagram ID";
 
   let items: any[];
   try {
@@ -32,7 +32,7 @@ export async function syncPosts(db: SupabaseClient, c: { id: string; name: strin
     try {
       const r = await graph<{ data: any[] }>(`${c.ig_user_id}/media`, { fields: BASE_FIELDS, limit });
       items = r.data || [];
-    } catch (e: any) { return "posts: " + (e?.message || "فشل").slice(0, 120); }
+    } catch (e: any) { return "posts: " + (e?.message || "failed").slice(0, 120); }
   }
   if (!items.length) return "";
 

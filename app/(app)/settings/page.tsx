@@ -36,7 +36,7 @@ export default async function SettingsPage() {
               return (
                 <div className="kv" key={e.key}>
                   <span>{e.label}</span>
-                  <span className={`chip ${set ? "ok" : e.required ? "bad" : "mute"}`}>{set ? "مضبوط" : e.required ? "ناقص" : "غير مفعّل"}</span>
+                  <span className={`chip ${set ? "ok" : e.required ? "bad" : "mute"}`}>{set ? "Set" : e.required ? "Missing" : "Off"}</span>
                 </div>
               );
             })}
@@ -55,7 +55,7 @@ export default async function SettingsPage() {
               {logs.map((l: any, i: number) => (
                 <div className="kv" key={i}>
                   <span>{l.kind} · {new Date(l.created_at).toLocaleString("en-GB", { timeZone: "Asia/Baghdad" })}</span>
-                  <span className={`chip ${l.ok ? "ok" : "bad"}`}>{l.detail || (l.ok ? "OK" : "فشل")}</span>
+                  <span className={`chip ${l.ok ? "ok" : "bad"}`}>{l.detail || (l.ok ? "OK" : "Failed")}</span>
                 </div>
               ))}
             </div>

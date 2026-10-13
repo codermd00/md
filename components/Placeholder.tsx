@@ -3,8 +3,8 @@ export default function Placeholder({ title, sub, stage }: { title: string; sub:
     <>
       <div className="topbar"><div><div className="h1">{title}</div><div className="sub">{sub}</div></div></div>
       <div className="card empty">
-        <b>تُبنى في المرحلة {stage}</b>
-        سنراجعها معك على بياناتك الحقيقية بعد اكتمال المرحلة السابقة.
+        <b>Coming in stage {stage}</b>
+        
       </div>
     </>
   );

@@ -55,7 +55,7 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
     });
   }
   function remove(c: ClientCard) {
-    if (!confirm(`حذف ${c.name} وكل بياناته؟`)) return;
+    if (!confirm(`Delete ${c.name} and all its data?`)) return;
     start(async () => { const r = await deleteClient(c.id); setMsg({ ok: r.ok, text: r.message }); });
   }
   function syncAllNow() {
@@ -73,7 +73,7 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
       </div>
 
       <div className="toolbar">
-        <input placeholder="بحث بالاسم أو اليوزر أو الحساب..." value={q} onChange={(e) => setQ(e.target.value)} />
+        <input placeholder="Search..." value={q} onChange={(e) => setQ(e.target.value)} />
         <select value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="all">All status</option><option value="live">Live</option>
           <option value="disabled">Disabled</option><option value="finished">Finished</option>
@@ -82,9 +82,9 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
       </div>
 
       {clients.length === 0 ? (
-        <div className="card empty"><b>لا عملاء بعد</b>اضغط «Add Client» وأدخل الحساب الإعلاني، وسيجلب النظام الحملات تلقائياً.</div>
+        <div className="card empty"><b>No clients yet</b>Click Add Client.</div>
       ) : list.length === 0 ? (
-        <div className="card empty"><b>لا نتائج</b>غيّر البحث أو الفلتر.</div>
+        <div className="card empty"><b>No results</b></div>
       ) : (
         <div className="cards">
           {list.map((c) => {
@@ -128,26 +128,26 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
       {form && (
         <div className="overlay" onClick={() => !pending && setForm(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>{form.id ? "تعديل عميل" : "عميل جديد"}</h2>
+            <h2>{form.id ? "Edit client" : "New client"}</h2>
             <div className="grid g2">
-              <label className="f">الاسم<input value={form.name} onChange={(e) => set("name", e.target.value)} /></label>
-              <label className="f">يوزر انستغرام<input value={form.ig_username} onChange={(e) => set("ig_username", e.target.value)} placeholder="بدون @" /></label>
-              <label className="f" style={{ gridColumn: "1 / -1" }}>الحساب الإعلاني<input value={form.ad_account_id} onChange={(e) => set("ad_account_id", e.target.value)} placeholder="act_1234567890" /></label>
-              <label className="f">بداية الفترة<input type="date" value={form.period_start} onChange={(e) => set("period_start", e.target.value)} /></label>
-              <label className="f">نهاية الفترة<input type="date" value={form.period_end} onChange={(e) => set("period_end", e.target.value)} /></label>
-              <label className="f">الميزانية ($)<input type="number" value={form.budget} onChange={(e) => set("budget", e.target.value)} /></label>
-              <label className="f">Page ID (صفحة فيسبوك)<input dir="ltr" value={form.page_id} onChange={(e) => set("page_id", e.target.value)} placeholder="مثال: 123456789012345" /></label>
-              <label className="f">Instagram ID (اختياري)<input dir="ltr" value={form.ig_user_id} onChange={(e) => set("ig_user_id", e.target.value)} placeholder="رقم حساب انستغرام المهني" /></label>
+              <label className="f">Name<input value={form.name} onChange={(e) => set("name", e.target.value)} /></label>
+              <label className="f">Instagram username<input value={form.ig_username} onChange={(e) => set("ig_username", e.target.value)} placeholder="without @" /></label>
+              <label className="f" style={{ gridColumn: "1 / -1" }}>Ad account<input value={form.ad_account_id} onChange={(e) => set("ad_account_id", e.target.value)} placeholder="act_1234567890" /></label>
+              <label className="f">Period start<input type="date" value={form.period_start} onChange={(e) => set("period_start", e.target.value)} /></label>
+              <label className="f">Period end<input type="date" value={form.period_end} onChange={(e) => set("period_end", e.target.value)} /></label>
+              <label className="f">Budget ($)<input type="number" value={form.budget} onChange={(e) => set("budget", e.target.value)} /></label>
+              <label className="f">Page ID<input dir="ltr" value={form.page_id} onChange={(e) => set("page_id", e.target.value)} placeholder="123456789012345" /></label>
+              <label className="f">Instagram ID<input dir="ltr" value={form.ig_user_id} onChange={(e) => set("ig_user_id", e.target.value)} placeholder="Instagram business ID" /></label>
               <label className="f" style={{ flexDirection: "row", alignItems: "center", gap: 8, gridColumn: "1 / -1" }}>
                 <input type="checkbox" checked={form.run_posts} onChange={(e) => setForm({ ...form, run_posts: e.target.checked })} style={{ width: "auto" }} />
-                مراقبة منشورات انستغرام وجلبها (Content Manager) — يتطلب Instagram ID
+                Fetch Instagram posts (Content Manager)
               </label>
-              <label className="f">النوع (اختياري)<input value={form.business_type} onChange={(e) => set("business_type", e.target.value)} /></label>
-              <label className="f">المدينة (اختياري)<input value={form.city} onChange={(e) => set("city", e.target.value)} /></label>
+              <label className="f">Type<input value={form.business_type} onChange={(e) => set("business_type", e.target.value)} /></label>
+              <label className="f">City<input value={form.city} onChange={(e) => set("city", e.target.value)} /></label>
             </div>
             <div className="acts">
-              <button className="btn" onClick={() => setForm(null)} disabled={pending}>إلغاء</button>
-              <button className="btn pri" onClick={save} disabled={pending}>{pending ? "جارٍ الحفظ والمزامنة..." : "حفظ"}</button>
+              <button className="btn" onClick={() => setForm(null)} disabled={pending}>Cancel</button>
+              <button className="btn pri" onClick={save} disabled={pending}>{pending ? "Saving..." : "Save"}</button>
             </div>
           </div>
         </div>

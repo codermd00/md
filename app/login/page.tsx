@@ -14,7 +14,7 @@ export default function LoginPage() {
     e.preventDefault();
     setBusy(true); setErr("");
     const { error } = await createClient().auth.signInWithPassword({ email, password });
-    if (error) { setErr("البريد أو كلمة المرور غير صحيحة"); setBusy(false); return; }
+    if (error) { setErr("Wrong email or password"); setBusy(false); return; }
     router.replace("/overview");
     router.refresh();
   }

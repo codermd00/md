@@ -35,7 +35,7 @@ export async function graph<T = any>(
   params: Record<string, string | number | undefined> = {}
 ): Promise<T> {
   const token = process.env.META_ACCESS_TOKEN;
-  if (!token) throw new MetaError("META_ACCESS_TOKEN غير مضبوط");
+  if (!token) throw new MetaError("META_ACCESS_TOKEN not set");
   const url = new URL(`${BASE}/${path.replace(/^\//, "")}`);
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined) url.searchParams.set(k, String(v));
@@ -78,7 +78,7 @@ export async function graphIds<T = any>(ids: string[], fields: string): Promise<
 /** POST إلى Meta (بدون إعادة محاولة حتى لا يتكرر إنشاء كائن). */
 export async function graphPost<T = any>(path: string, body: Record<string, any> = {}): Promise<T> {
   const token = process.env.META_ACCESS_TOKEN;
-  if (!token) throw new MetaError("META_ACCESS_TOKEN غير مضبوط");
+  if (!token) throw new MetaError("META_ACCESS_TOKEN not set");
   const form = new URLSearchParams();
   for (const [k, v] of Object.entries(body)) {
     if (v === undefined || v === null) continue;

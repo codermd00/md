@@ -49,8 +49,8 @@ export default function CrmView(p: {
   const tone = !hasEvents ? "mute" : hp.problems.length ? "warn" : "ok";
   const healthPill = (
     <div style={{ position: "relative" }}>
-      <span className={`chip ${tone}`} style={{ cursor: "pointer", padding: "7px 12px" }} onClick={() => setOpen(!open)} title="حالة استقبال الرسائل (Webhook)">
-        ● Webhook · {hasEvents ? ago(hp.lastEvent) : "لم يصل شيء"}{hp.problems.length ? ` · ${hp.problems.length} مشكلة` : ""}
+      <span className={`chip ${tone}`} style={{ cursor: "pointer", padding: "7px 12px" }} onClick={() => setOpen(!open)} title="Webhook status">
+        ● Webhook · {hasEvents ? ago(hp.lastEvent) : "nothing received"}{hp.problems.length ? ` · ${hp.problems.length} issue(s)` : ""}
       </span>
       {open && (
         <div className="panel pop" style={{ position: "absolute", top: "calc(100% + 6px)", insetInlineEnd: 0, width: 340, zIndex: 20, boxShadow: "0 8px 30px rgba(0,0,0,.18)" }}>
@@ -73,7 +73,7 @@ export default function CrmView(p: {
           {!hasEvents && (
             <div className="fnd warn" style={{ marginTop: 8 }}>
               <b>No events yet</b>
-              <div className="c" dir="ltr" style={{ wordBreak: "break-all" }}>{hp.url || "(NEXT_PUBLIC_SUPABASE_URL غير مضبوط)"}</div>
+              <div className="c" dir="ltr" style={{ wordBreak: "break-all" }}>{hp.url || "(NEXT_PUBLIC_SUPABASE_URL not set)"}</div>
               
             </div>
           )}
@@ -95,7 +95,7 @@ export default function CrmView(p: {
 
   if (!p.client) {
     return (<><div className="topbar"><div><div className="h1">CRM Messages</div></div></div>
-      <div className="panel empty"><b>لا عملاء بعد</b>أضف عميلاً من صفحة Clients.</div></>);
+      <div className="panel empty"><b>No clients yet</b>Add a client from Clients.</div></>);
   }
 
   return (
@@ -117,7 +117,7 @@ export default function CrmView(p: {
       {(p.sync.failed || !p.sync.lastOk) && (
         <div className="fnd warn" style={{ marginBottom: 12 }}>
           <b>{p.sync.failed ? "Last sync failed — showing last good data" : "Not synced yet"}</b>
-          <div className="c" dir="auto">{p.sync.failed ? p.sync.failed.slice(0, 160) : ""}{p.sync.lastOk ? ` · آخر نجاح ${ago(p.sync.lastOk)}` : ""}</div>
+          <div className="c" dir="auto">{p.sync.failed ? p.sync.failed.slice(0, 160) : ""}{p.sync.lastOk ? ` · last OK ${ago(p.sync.lastOk)}` : ""}</div>
         </div>
       )}
 
@@ -161,7 +161,6 @@ export default function CrmView(p: {
               })}
             </div>
           )}
-          {metric === "cost" && <div className="rec">الأخضر الأرخص والأحمر الأغلى (محافظات بـ 3 طلبات فأكثر).</div>}
         </div>
       </div>
 
@@ -171,7 +170,7 @@ export default function CrmView(p: {
           <div className="pbar">
             <input placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 170, padding: "7px 10px", fontSize: 13 }} />
             <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <option value="">كل المحافظات</option>
+              <option value="">All governorates</option>
               {[...GOVERNORATES, UNKNOWN_GOV].map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
           </div>
@@ -179,7 +178,7 @@ export default function CrmView(p: {
         {shown.length === 0 ? <div className="sub">—</div> : (
           <div style={{ overflowX: "auto" }}>
             <table className="bt stack">
-              <thead><tr><th>اليوم</th><th>الهاتف</th><th>المحافظة</th><th>العنوان</th><th></th></tr></thead>
+              <thead><tr><th>Day</th><th>Phone</th><th>Governorate</th><th>Address</th><th></th></tr></thead>
               <tbody>
                 {shown.slice(0, 100).map((o) => (
                   <tr key={o.id}>
@@ -193,7 +192,7 @@ export default function CrmView(p: {
                     </td>
                     <td dir="auto" style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={o.address}>{o.address || "—"}</td>
                     <td><a style={{ color: "var(--red)", cursor: "pointer", fontSize: 12 }}
-                      onClick={() => confirm("حذف هذا الطلب؟") && start(async () => { await deleteOrder(o.id); router.refresh(); })}>حذف</a></td>
+                      onClick={() => confirm("Delete this order?") && start(async () => { await deleteOrder(o.id); router.refresh(); })}>Delete</a></td>
                   </tr>
                 ))}
               </tbody>

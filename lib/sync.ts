@@ -25,7 +25,7 @@ const FINAL_AFTER_DAYS = 7; // بعد انتهاء الفترة بأسبوع ت�
 export async function syncClient(clientId: string): Promise<{ ok: boolean; detail: string }> {
   const db = createAdminSupabase();
   const { data: client, error: ce } = await db.from("clients").select("*").eq("id", clientId).single();
-  if (ce || !client) return { ok: false, detail: ce?.message || "العميل غير موجود" };
+  if (ce || !client) return { ok: false, detail: ce?.message || "Client not found" };
   const c = client as Client;
   const act = `act_${c.ad_account_id}`;
   const notes: string[] = [];
@@ -45,8 +45,8 @@ export async function syncClient(clientId: string): Promise<{ ok: boolean; detai
           account_status: ACCOUNT_STATUS[acc.account_status] || String(acc.account_status), currency: acc.currency, synced_at: new Date().toISOString(),
         }).eq("id", c.id);
         const pn = await syncPosts(db, c).catch((e: any) => "posts: " + (e?.message || ""));
-        await db.from("sync_log").insert({ kind: "client", client_id: c.id, ok: true, detail: "فترة منتهية ومحفوظة — لا جلب" + (pn ? " | " + pn : "") });
-        return { ok: true, detail: "فترة منتهية ومحفوظة" };
+        await db.from("sync_log").insert({ kind: "client", client_id: c.id, ok: true, detail: "Period finished and saved — skipped" + (pn ? " | " + pn : "") });
+        return { ok: true, detail: "Period finished and saved" };
       }
     }
 
@@ -204,11 +204,11 @@ export async function syncClient(clientId: string): Promise<{ ok: boolean; detai
     if (!dailyFailed) await db.from("clients").update({ synced_at: new Date().toISOString() }).eq("id", c.id);
     await db.from("sync_log").insert({
       kind: "client", client_id: c.id, ok: !dailyFailed,
-      detail: `${campaigns.length} حملات` + (notes.length ? " | " + notes.join(" | ") : ""),
+      detail: `${campaigns.length} campaigns` + (notes.length ? " | " + notes.join(" | ") : ""),
     });
-    return dailyFailed ? { ok: false, detail: notes.join(" | ") } : { ok: true, detail: `${campaigns.length} حملات، ${adsets.length} مجموعات` };
+    return dailyFailed ? { ok: false, detail: notes.join(" | ") } : { ok: true, detail: `${campaigns.length} campaigns, ${adsets.length} ad sets` };
   } catch (e: any) {
-    const msg = e?.message || "خطأ غير معروف";
+    const msg = e?.message || "Unknown error";
     await db.from("sync_log").insert({ kind: "client", client_id: c.id, ok: false, detail: msg });
     return { ok: false, detail: msg };
   }

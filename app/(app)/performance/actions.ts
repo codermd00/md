@@ -7,11 +7,11 @@ export async function saveGoal(input: {
 }): Promise<{ ok: boolean; message: string }> {
   const sb = createServerSupabase();
   const { data: u } = await sb.auth.getUser();
-  if (!u.user) return { ok: false, message: "غير مصرّح" };
+  if (!u.user) return { ok: false, message: "Unauthorized" };
   const budget = input.budget.trim() === "" ? null : Number(input.budget);
   const target = input.target.trim() === "" ? null : Number(input.target);
   if ((budget !== null && !(budget >= 0)) || (target !== null && !(target >= 0)))
-    return { ok: false, message: "أرقام غير صحيحة" };
+    return { ok: false, message: "Invalid numbers" };
   const { error } = await sb.from("campaign_goals").upsert(
     {
       campaign_id: input.campaignId, period_start: input.periodStart, budget, target,
@@ -21,5 +21,5 @@ export async function saveGoal(input: {
   );
   if (error) return { ok: false, message: error.message };
   revalidatePath("/performance");
-  return { ok: true, message: "تم الحفظ" };
+  return { ok: true, message: "Saved" };
 }

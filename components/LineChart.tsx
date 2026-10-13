@@ -55,9 +55,6 @@ export default function LineChart({ labels, series, height = 160, partialLast = 
     const ticks = [0, 1 / 3, 2 / 3, 1];
     return (
       <div key={gi} style={{ marginTop: gi ? 6 : 0 }}>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11.5, color: "var(--t2)", fontWeight: 600, paddingLeft: L }}>
-          {g.map((s) => <span key={s.name}><i style={{ display: "inline-block", width: 9, height: 9, borderRadius: 3, background: s.color, marginRight: 5 }} />{s.name}</span>)}
-        </div>
         <svg width={W} height={H} style={{ display: "block", touchAction: "pan-y", cursor: "crosshair" }} onPointerDown={pick} onPointerMove={pick}>
           {ticks.map((t) => (
             <g key={t}>

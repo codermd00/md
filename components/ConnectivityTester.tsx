@@ -13,7 +13,7 @@ export default function ConnectivityTester() {
     setErr(""); setRes(null);
     start(async () => {
       try { setRes(await runConnectivity(acc)); }
-      catch (e: any) { setErr(e?.message || "فشل الاختبار"); }
+      catch (e: any) { setErr(e?.message || "Test failed"); }
     });
   }
 
@@ -23,9 +23,9 @@ export default function ConnectivityTester() {
     <div className="card">
       <h3>Connection Test</h3>
       <div className="row" style={{ marginTop: 14 }}>
-        <label className="f">Ad Account ID<input value={acc} onChange={(e) => setAcc(e.target.value)} placeholder="1234567890 أو act_1234567890" /></label>
+        <label className="f">Ad Account ID<input value={acc} onChange={(e) => setAcc(e.target.value)} placeholder="1234567890 or act_1234567890" /></label>
         <div style={{ flex: "0 0 auto", minWidth: 0 }}>
-          <button className="btn pri" onClick={run} disabled={pending || !acc.trim()}>{pending ? "جارٍ الفحص..." : "اختبر"}</button>
+          <button className="btn pri" onClick={run} disabled={pending || !acc.trim()}>{pending ? "Testing..." : "Test"}</button>
         </div>
       </div>
       {err && <div className="msg err">{err}</div>}
@@ -40,7 +40,7 @@ export default function ConnectivityTester() {
             ))}
           </div>
           <div className={`msg ${failed ? "err" : ""}`}>
-            {failed ? `${failed} فحص فاشل — أرسل لي النص الأحمر لأصلحه.` : "كل الفحوصات ناجحة ✓"}
+            {failed ? `${failed} check(s) failed` : "All checks passed ✓"}
           </div>
           {(res.pageId || res.igUserId) && (
             <div style={{ marginTop: 10 }}>

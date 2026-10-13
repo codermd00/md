@@ -111,7 +111,7 @@ export default async function CrmPage({ searchParams }: { searchParams: { client
       range={range} from={from} to={to}
       orders={orders.slice(0, 300).map((o: any): OrderRow => ({ id: o.id, phone: o.phone, day: o.day, address: o.address || "", governorate: o.governorate || "", adId: o.ad_id || "" }))}
       gov={gov} days={days} kpi={kpi} health={health} sync={sync}
-      govSpendNote={range !== "period" ? "صرف المحافظات من Meta متاح لفترة العميل كاملة فقط." : unmappedSpend > 0.5 ? `صرف غير مطابق لمحافظة: $${unmappedSpend.toFixed(2)}` : ""}
+      govSpendNote={range !== "period" ? "" : unmappedSpend > 0.5 ? `Unmatched spend: $${unmappedSpend.toFixed(2)}` : ""}
     />
   );
 }

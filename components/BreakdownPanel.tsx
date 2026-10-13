@@ -101,11 +101,11 @@ export default function BreakdownPanel({ campaigns, adsets, breakdown, initial }
           </table>
           <div className="rec">
             {noResults
-              ? "Meta لم تُرجع نتائج لهذا التقسيم (الصرف فقط). لا مقارنة تكلفة هنا" + (dim === "region" ? "؛ تكلفة الطلب لكل محافظة ستأتي من CRM في مرحلة لاحقة." : ".")
+              ? "No results returned for this breakdown (spend only)."
               : best && worst
-              ? <>الأفضل: <b>{best.key}</b> ({cprFmt(best.cpr)}) · الأغلى: <b>{worst.key}</b> ({cprFmt(worst.cpr)}، {worst.spendShare >= 15 ? `يستهلك ${Math.round(worst.spendShare)}% من الصرف` : "صرف محدود"}). قرّر بنفسك إن كان يستحق استبعاده أو تقليل ميزانيته.</>
-              : "لا توصية: لا توجد شرائح كافية بعينة كبيرة (صرف ≥ $3 ونتائج ≥ 5) للمقارنة."}
-            {info?.type === "reach" && " · الوصول لا يُجمع عبر الشرائح (قد يتكرر نفس الشخص)."}
+              ? <>Best: <b>{best.key}</b> ({cprFmt(best.cpr)}) · Worst: <b>{worst.key}</b> ({cprFmt(worst.cpr)}, {Math.round(worst.spendShare)}% of spend)</>
+              : "Not enough data to compare (needs spend ≥ $3 and results ≥ 5)."}
+            
           </div>
         </div>
       )}

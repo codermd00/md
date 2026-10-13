@@ -10,14 +10,14 @@ export const dynamic = "force-dynamic";
 
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const ACCOUNT_HINT: Record<string, string> = {
-  unsettled: "رصيد غير مسدّد",
-  grace_period: "مهلة سداد",
-  pending_settlement: "بانتظار تسوية دفعة",
-  pending_review: "قيد المراجعة",
-  pending_closure: "قيد الإغلاق",
-  disabled: "الحساب معطّل",
-  closed: "الحساب مغلق",
-  temporarily_unavailable: "غير متاح مؤقتاً",
+  unsettled: "Unpaid balance",
+  grace_period: "Payment grace period",
+  pending_settlement: "Payment pending",
+  pending_review: "Under review",
+  pending_closure: "Closing",
+  disabled: "Account disabled",
+  closed: "Account closed",
+  temporarily_unavailable: "Temporarily unavailable",
 };
 const ago = (iso: string | null) => {
   if (!iso) return "Never";
@@ -86,23 +86,23 @@ export default async function OverviewPage() {
 
   // ---- ما يحتاج انتباهاً ----
   const items: Item[] = [];
-  for (const c of disabled) items.push({ level: "bad", client: c.name, clientId: c.id, text: ACCOUNT_HINT[String(c.account_status)] || `حالة الحساب الإعلاني: ${c.account_status}` });
+  for (const c of disabled) items.push({ level: "bad", client: c.name, clientId: c.id, text: ACCOUNT_HINT[String(c.account_status)] || `Account status: ${c.account_status}` });
   for (const x of risky) {
     items.push({
       level: "bad", client: x.client.name, clientId: x.client.id,
-      text: `${x.camp.name} (${TYPE_LABEL[x.camp.type as keyof typeof TYPE_LABEL]}) ${x.p.status === "missed" ? "لم يتحقق هدفها" : "متأخرة"}: ${Math.round(x.p.pct || 0)}% من الهدف`,
+      text: `${x.camp.name} (${TYPE_LABEL[x.camp.type as keyof typeof TYPE_LABEL]}) ${x.p.status === "missed" ? "missed" : "late"}: ${Math.round(x.p.pct || 0)}% of target`,
     });
   }
   const failed = new Map<string, string>();
   for (const l of (logs || []) as any[]) if (l.client_id && !l.ok && !failed.has(l.client_id)) failed.set(l.client_id, l.detail || "");
   const okRecent = new Set((logs || []).filter((l: any) => l.ok && l.client_id).map((l: any) => l.client_id));
-  for (const [id, d] of failed) if (!okRecent.has(id)) items.push({ level: "warn", client: nameOf.get(id) || "—", clientId: id, text: `فشلت المزامنة: ${d.slice(0, 90)}` });
+  for (const [id, d] of failed) if (!okRecent.has(id)) items.push({ level: "warn", client: nameOf.get(id) || "—", clientId: id, text: `Sync failed: ${d.slice(0, 90)}` });
   for (const c of cl) {
     const d = daysLeft(c.period_end, today);
     if (c.period_end && c.period_end >= today && d !== null && d <= 3) {
-      endingSoon.push({ level: "warn", client: c.name, clientId: c.id, text: d === 0 ? "تنتهي الفترة اليوم" : `تنتهي الفترة بعد ${d} يوم` });
+      endingSoon.push({ level: "warn", client: c.name, clientId: c.id, text: d === 0 ? "Period ends today" : `Period ends in ${d}d` });
     }
-    if (!c.period_start || !c.period_end) items.push({ level: "warn", client: c.name, clientId: c.id, text: "لم تُحدَّد فترة العميل" });
+    if (!c.period_start || !c.period_end) items.push({ level: "warn", client: c.name, clientId: c.id, text: "No period set" });
   }
   items.sort((a, b) => (a.level === b.level ? 0 : a.level === "bad" ? -1 : 1));
 
@@ -121,7 +121,7 @@ export default async function OverviewPage() {
       </div>
 
       {cl.length === 0 ? (
-        <div className="panel empty"><b>لا عملاء بعد</b><Link href="/clients" style={{ color: "var(--blue2)" }}>أضف أول عميل من صفحة Clients</Link></div>
+        <div className="panel empty"><b>No clients yet</b><Link href="/clients" style={{ color: "var(--blue2)" }}>Add your first client</Link></div>
       ) : (
         <>
           <div className="tiles">
@@ -145,7 +145,7 @@ export default async function OverviewPage() {
                     {items.slice(0, 12).map((it, i) => (
                       <div className={`fnd ${it.level}`} key={i}>{link(it)}<div className="c" dir="auto">{it.text}</div></div>
                     ))}
-                    {items.length > 12 && <div className="sub">+{items.length - 12} أخرى</div>}
+                    {items.length > 12 && <div className="sub">+{items.length - 12} more</div>}
                   </div>
                 )}
               </div>
@@ -195,8 +195,8 @@ export default async function OverviewPage() {
             <div className="panel">
               <h3>Quick Note</h3>
               <form action={addQuickNote}>
-                <textarea name="body" rows={3} placeholder="اكتب ملاحظة…" style={{ width: "100%" }} />
-                <button className="btn pri" style={{ marginTop: 6 }} type="submit">حفظ</button>
+                <textarea name="body" rows={3} placeholder="Write a note…" style={{ width: "100%" }} />
+                <button className="btn pri" style={{ marginTop: 6 }} type="submit">Save</button>
               </form>
               {(notes || []).map((n: any) => <div className="dsum" key={n.id} style={{ cursor: "default" }}><span>{n.body.slice(0, 90)}</span></div>)}
             </div>

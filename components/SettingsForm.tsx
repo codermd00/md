@@ -22,20 +22,20 @@ export default function SettingsForm({ s }: { s: S }) {
     >
       <h3>Defaults</h3>
       <div className="grid g2" style={{ marginTop: 14 }}>
-        {num("late_threshold", "حد التأخر % (أقل منه = متأخر)")}
-        {num("goal_risk_days", "تنبيه قرب نهاية الفترة (أيام)")}
-        {num("day_hours", "ساعات «اليوم» في الإعلان")}
-        {num("default_budget", "ميزانية المنشور الافتراضية ($)")}
-        {num("default_days", "أيام المنشور الافتراضية")}
+        {num("late_threshold", "Late threshold (%)")}
+        {num("goal_risk_days", "Period ending alert (days)")}
+        {num("day_hours", "Hours per ad day")}
+        {num("default_budget", "Default post budget ($)")}
+        {num("default_days", "Default post days")}
         {num("sync_interval", "Auto sync every (minutes, min 5)")}
       </div>
       <h3 style={{ marginTop: 20 }}>Telegram Notifications</h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
-        {chk("notify_new_post", "منشور جديد")}
-        {chk("notify_run_done", "اكتمال التشغيل")}
-        {chk("notify_error", "الأخطاء")}
+        {chk("notify_new_post", "New post")}
+        {chk("notify_run_done", "Run completed")}
+        {chk("notify_error", "Errors")}
       </div>
-      <div style={{ marginTop: 18 }}><button className="btn pri" disabled={pending}>{pending ? "..." : "حفظ"}</button></div>
+      <div style={{ marginTop: 18 }}><button className="btn pri" disabled={pending}>{pending ? "..." : "Save"}</button></div>
       {msg && <div className={`msg ${msg.ok ? "" : "err"}`}>{msg.text}</div>}
     </form>
   );

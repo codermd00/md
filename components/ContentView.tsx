@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
 
@@ -15,7 +15,7 @@ const ST: Record<string, { label: string; cls: string }> = {
   ready: { label: "Ready", cls: "warn" }, running: { label: "Running", cls: "ok" }, done: { label: "Done", cls: "mute" },
   skip: { label: "Skip", cls: "mute" }, failed: { label: "Failed", cls: "bad" },
 };
-const TYPE: Record<string, string> = { IMAGE: "صورة", VIDEO: "فيديو", CAROUSEL_ALBUM: "كاروسيل" };
+const TYPE: Record<string, string> = { IMAGE: "Image", VIDEO: "Video", CAROUSEL_ALBUM: "Carousel" };
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
 export default function ContentView({ clients, posts }: { clients: { id: string; name: string; hasIg: boolean }[]; posts: PostCard[] }) {
@@ -41,11 +41,11 @@ export default function ContentView({ clients, posts }: { clients: { id: string;
         <div><div className="h1" style={{ fontSize: 20 }}>Content Manager</div></div>
         <div className="pbar">
           <select value={client} onChange={(e) => setClient(e.target.value)}>
-            <option value="">كل العملاء</option>
+            <option value="">All clients</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <input placeholder="بحث" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 140, padding: "7px 10px", fontSize: 13 }} />
-          <button className="btn" onClick={() => refresh()} disabled={pending}>{pending ? "..." : "تحديث الآن"}</button>
+          <input placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 140, padding: "7px 10px", fontSize: 13 }} />
+          <button className="btn" onClick={() => refresh()} disabled={pending}>{pending ? "..." : "Refresh"}</button>
           {client && (
             <>
               <input type="number" min={1} max={50} value={n} onChange={(e) => setN(e.target.value)} style={{ width: 64, padding: "7px 10px", fontSize: 13 }} />
@@ -76,7 +76,7 @@ export default function ContentView({ clients, posts }: { clients: { id: string;
                   <span className={`chip sm ${p.eligible === true ? "ok" : p.eligible === false ? "bad" : "mute"}`}>
                     {p.eligible === true ? "✓" : p.eligible === false ? "✗" : "?"}
                   </span>
-                  {p.adsetName && <span className="sub" style={{ margin: 0 }}>{p.mode === "copy" ? "نسخ" : "مباشر"} · {p.adsetName}</span>}
+                  {p.adsetName && <span className="sub" style={{ margin: 0 }}>{p.mode === "copy" ? "Copy" : "Direct"} · {p.adsetName}</span>}
                 </div>
               </div>
             </div>
@@ -89,16 +89,25 @@ export default function ContentView({ clients, posts }: { clients: { id: string;
   );
 }
 
+const TARGET_CACHE = new Map<string, { t: TargetCampaign[]; at: number }>();
+
 function PostModal({ post, onClose, onDone }: { post: PostCard; onClose: () => void; onDone: () => void }) {
   const [f, setF] = useState({ status: (post.status === "skip" ? "skip" : "ready") as "ready" | "skip", mode: post.mode, budget: post.budget, days: post.days, campId: post.campId, adsetId: post.adsetId });
-  const [targets, setTargets] = useState<TargetCampaign[] | null>(null);
+  const cached = TARGET_CACHE.get(post.clientId);
+  const [targets, setTargets] = useState<TargetCampaign[] | null>(cached && Date.now() - cached.at < 30 * 60_000 ? cached.t : null);
+  const [loading, setLoading] = useState(false);
   const [tmsg, setTmsg] = useState("");
   const [msg, setMsg] = useState("");
   const router = useRouter();
   const [pending, start] = useTransition();
   const locked = post.status === "running" || post.status === "done";
 
-  const loadTargets = () => start(async () => { const r = await listTargets(post.clientId); setTargets(r.campaigns); setTmsg(r.message); });
+  const loadTargets = async () => {
+    setLoading(true);
+    try { const r = await listTargets(post.clientId); setTargets(r.campaigns); setTmsg(r.message); if (r.ok) TARGET_CACHE.set(post.clientId, { t: r.campaigns, at: Date.now() }); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { if (!targets && !locked && f.mode) loadTargets(); /* eslint-disable-next-line */ }, [f.mode]);
   const camp = targets?.find((c) => c.id === f.campId);
   const adset = camp?.adsets.find((a) => a.id === f.adsetId);
 
@@ -126,7 +135,7 @@ function PostModal({ post, onClose, onDone }: { post: PostCard; onClose: () => v
     if (!r.ok) { setPlan(null); setMsg(r.message); router.refresh(); return; }
     onDone();
   });
-  const del = () => { if (confirm("إخفاء هذا المنشور؟ لن يعود عند التحديث.")) start(async () => { await hidePost(post.id); onDone(); }); };
+  const del = () => { if (confirm("Hide this post?")) start(async () => { await hidePost(post.id); onDone(); }); };
 
   return (
     <div className="overlay" onClick={() => !pending && onClose()}>
@@ -138,28 +147,28 @@ function PostModal({ post, onClose, onDone }: { post: PostCard; onClose: () => v
             <div className="sub" style={{ margin: 0 }}>@{post.username} · {TYPE[post.mediaType] || post.mediaType} · {post.shortcode}</div>
             <div style={{ margin: "6px 0" }}>
               <span className={`chip sm ${post.eligible === true ? "ok" : post.eligible === false ? "bad" : "mute"}`}>
-                Check {post.eligible === true ? "✓" : post.eligible === false ? "✗" : "؟"}
+                Check {post.eligible === true ? "✓" : post.eligible === false ? "✗" : "?"}
               </span>{" "}
-              <a href={post.permalink} target="_blank" rel="noreferrer" style={{ color: "var(--blue2)", fontWeight: 600, fontSize: 13 }}>فتح المنشور</a>
+              <a href={post.permalink} target="_blank" rel="noreferrer" style={{ color: "var(--blue2)", fontWeight: 600, fontSize: 13 }}>Open post</a>
             </div>
             <div className="sub" dir="ltr" style={{ margin: 0 }}>ID: {post.igMediaId}</div>
-            {post.eligible === false && <div className="c" style={{ color: "var(--red)", fontSize: 12 }}>{post.reason || "Meta ترفض ترويجه (مثلاً صوت محمي بحقوق). لن يُسمح بتشغيله."}</div>}
+            {post.eligible === false && <div className="c" style={{ color: "var(--red)", fontSize: 12 }}>{post.reason || "Meta will not boost this post."}</div>}
           </div>
         </div>
         {post.caption && <div className="sub" dir="auto" style={{ margin: "10px 0 0", maxHeight: 54, overflow: "hidden" }}>{post.caption}</div>}
         {post.error && <div className="fnd bad" style={{ marginTop: 8 }}><div className="c" dir="auto">{post.error}</div></div>}
 
         <div className="grid g2" style={{ marginTop: 14 }}>
-          <label className="f">الحالة
+          <label className="f">Status
             <select value={f.status} disabled={locked} onChange={(e) => setF({ ...f, status: e.target.value as "ready" | "skip" })}>
-              <option value="ready">Ready</option><option value="skip">Skip (تجاهل)</option>
+              <option value="ready">Ready</option><option value="skip">Skip</option>
             </select>
           </label>
-          <label className="f">الطريقة
+          <label className="f">Method
             <select value={f.mode} disabled={locked} onChange={(e) => setF({ ...f, mode: e.target.value as any })}>
-              <option value="">— لم تُحدَّد —</option>
-              <option value="direct">إضافة مباشرة إلى مجموعة</option>
-              <option value="copy">نسخ مجموعة لعدد أيام</option>
+              <option value="">— Select —</option>
+              <option value="direct">Add to ad set</option>
+              <option value="copy">Copy ad set for N days</option>
             </select>
           </label>
         </div>
@@ -167,50 +176,51 @@ function PostModal({ post, onClose, onDone }: { post: PostCard; onClose: () => v
         {f.mode && (
           <div style={{ marginTop: 10 }}>
             <div className="grid g2">
-              <label className="f">الحملة (وصول/تفاعل)
+              <label className="f">Campaign
                 <select value={f.campId} disabled={locked} onChange={(e) => setF({ ...f, campId: e.target.value, adsetId: "" })}>
-                  <option value="">— اختر —</option>
+                  <option value="">— Select —</option>
                   {f.campId && !camp && <option value={f.campId}>{post.campName || f.campId}</option>}
-                  {(targets || []).map((c) => <option key={c.id} value={c.id}>{c.name}{c.status !== "ACTIVE" ? " (متوقفة)" : ""}</option>)}
+                  {(targets || []).map((c) => <option key={c.id} value={c.id}>{c.name}{c.status !== "ACTIVE" ? " (paused)" : ""}</option>)}
                 </select>
               </label>
-              <label className="f">{f.mode === "copy" ? "المجموعة المراد نسخها" : "المجموعة"}
+              <label className="f">{f.mode === "copy" ? "Ad set to copy" : "Ad set"}
                 <select value={f.adsetId} disabled={locked} onChange={(e) => setF({ ...f, adsetId: e.target.value })}>
-                  <option value="">— اختر —</option>
+                  <option value="">— Select —</option>
                   {f.adsetId && !adset && <option value={f.adsetId}>{post.adsetName || f.adsetId}</option>}
                   {(camp?.adsets || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </label>
             </div>
-            {!targets && !locked && <button className="btn" style={{ marginTop: 8 }} onClick={loadTargets} disabled={pending}>{pending ? "..." : "جلب الحملات والمجموعات من Meta (فترة العميل)"}</button>}
+            {loading && <div className="sub" style={{ marginTop: 6 }}>Loading campaigns…</div>}
+            {targets && !locked && <a style={{ color: "var(--blue2)", fontSize: 12, fontWeight: 600, cursor: "pointer" }} onClick={loadTargets}>↻ Reload campaigns</a>}
             {tmsg && <div className="sub" style={{ marginTop: 6 }} dir="auto">{tmsg}</div>}
           </div>
         )}
 
         {f.mode === "copy" && (
           <div className="grid g2" style={{ marginTop: 10 }}>
-            <label className="f">الميزانية ($)<input type="number" value={f.budget} onChange={(e) => setF({ ...f, budget: e.target.value })} /></label>
-            <label className="f">عدد الأيام (اليوم = 18 ساعة)<input type="number" value={f.days} onChange={(e) => setF({ ...f, days: e.target.value })} /></label>
+            <label className="f">Budget ($)<input type="number" value={f.budget} onChange={(e) => setF({ ...f, budget: e.target.value })} /></label>
+            <label className="f">Days<input type="number" value={f.days} onChange={(e) => setF({ ...f, days: e.target.value })} /></label>
           </div>
         )}
 
         {plan && (
           <div className="fnd warn" style={{ marginTop: 12 }}>
-            <b>تأكيد التشغيل</b>
+            <b>Confirm run</b>
             <div className="c">{plan.map((l, i) => <div key={i}>{l}</div>)}</div>
             <div className="acts" style={{ marginTop: 8 }}>
-              <button className="btn" onClick={() => setPlan(null)} disabled={pending}>رجوع</button>
-              <button className="btn pri" onClick={run} disabled={pending}>{pending ? "جارٍ الإنشاء…" : "تأكيد وتشغيل"}</button>
+              <button className="btn" onClick={() => setPlan(null)} disabled={pending}>Back</button>
+              <button className="btn pri" onClick={run} disabled={pending}>{pending ? "Creating…" : "Confirm & run"}</button>
             </div>
           </div>
         )}
         {msg && <div className="msg err" dir="auto">{msg}</div>}
         <div className="acts">
-          {post.status === "failed" && <button className="btn" onClick={() => start(async () => { await resetPost(post.id); onDone(); })} disabled={pending}>إعادة إلى Ready</button>}
+          {post.status === "failed" && <button className="btn" onClick={() => start(async () => { await resetPost(post.id); onDone(); })} disabled={pending}>Reset to Ready</button>}
           {canRun && !plan && <button className="btn" style={{ background: "var(--green)", color: "#fff", borderColor: "transparent" }} onClick={startRun} disabled={pending}>▶ Run</button>}
-          <button className="btn" style={{ marginInlineEnd: "auto", color: "var(--red)" }} onClick={del} disabled={pending}>حذف</button>
-          <button className="btn" onClick={onClose} disabled={pending}>إلغاء</button>
-          <button className="btn pri" onClick={save} disabled={pending || locked}>{pending ? "..." : "حفظ"}</button>
+          <button className="btn" style={{ marginInlineEnd: "auto", color: "var(--red)" }} onClick={del} disabled={pending}>Delete</button>
+          <button className="btn" onClick={onClose} disabled={pending}>Cancel</button>
+          <button className="btn pri" onClick={save} disabled={pending || locked}>{pending ? "..." : "Save"}</button>
         </div>
       </div>
     </div>
