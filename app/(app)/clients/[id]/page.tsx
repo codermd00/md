@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { daysLeft } from "@/lib/dates";
+import { daysLeft, todayStr } from "@/lib/dates";
+import { computeProgress } from "@/lib/progress";
 import { TYPE_LABEL, formatCpr, type CampaignType } from "@/lib/results";
 
 export const dynamic = "force-dynamic";
@@ -19,10 +20,23 @@ export default async function ClientPage({ params }: { params: { id: string } })
     ? await sb.from("insights_range").select("*").eq("level", "campaign").in("entity_id", ids).order("synced_at", { ascending: false })
     : { data: [] as any[] };
 
+  const [{ data: goals }, { data: setRows }] = await Promise.all([
+    c.period_start && ids.length ? sb.from("campaign_goals").select("*").eq("period_start", c.period_start).in("campaign_id", ids) : Promise.resolve({ data: [] as any[] }),
+    sb.from("settings").select("key,value").eq("key", "late_threshold"),
+  ]);
+  const threshold = Number((setRows || [])[0]?.value) || 95;
+  const today = todayStr();
+
   const rows = (camps || [])
     .map((k: any) => {
       const r = (ranges || []).find((x: any) => x.entity_id === k.id && (!c.period_start || x.date_from === c.period_start));
-      return { k, spend: r ? Number(r.spend) : 0, results: r ? Number(r.results) : 0 };
+      const spend = r ? Number(r.spend) : 0, results = r ? Number(r.results) : 0;
+      const g = (goals || []).find((x: any) => x.campaign_id === k.id);
+      const p = computeProgress({
+        type: k.type, periodStart: c.period_start, periodEnd: c.period_end, today, result: results, spend,
+        goalTarget: g?.target != null ? Number(g.target) : null, goalBudget: g?.budget != null ? Number(g.budget) : null, threshold,
+      });
+      return { k, spend, results, p };
     })
     .filter((x: any) => x.spend > MIN_SPEND)
     .sort((a: any, b: any) => b.spend - a.spend);
@@ -56,15 +70,18 @@ export default async function ClientPage({ params }: { params: { id: string } })
           <div className="empty"><b>No campaigns with spend</b></div>
         ) : (
           <div style={{ overflowX: "auto" }}><table className="tbl tcards">
-            <thead><tr><th>Campaign</th><th>Type</th><th>Status</th><th>Spend</th><th>Results</th><th>CPR</th></tr></thead>
+            <thead><tr><th>Campaign</th><th>Type</th><th>Status</th><th>Spend</th><th>Budget</th><th>Balance</th><th>Results</th><th>Target</th><th>CPR</th></tr></thead>
             <tbody>
-              {rows.map(({ k, spend, results }: any) => (
+              {rows.map(({ k, spend, results, p }: any) => (
                 <tr key={k.id}>
                   <td><b>{k.name}</b></td>
                   <td><span className="chip mute">{TYPE_LABEL[k.type as CampaignType]}</span></td>
                   <td><span className={`chip ${k.effective_status === "ACTIVE" ? "ok" : "mute"}`}>{k.effective_status}</span></td>
                   <td data-label="Spend">{money(spend)}</td>
+                  <td data-label="Budget">{p.budget !== null ? money(p.budget) : "—"}</td>
+                  <td data-label="Balance">{p.balance !== null ? money(p.balance) : "—"}</td>
                   <td data-label="Results">{k.type === "other" ? "—" : results.toLocaleString("en-US")}</td>
+                  <td data-label="Target">{p.target ? `${p.target.toLocaleString("en-US")} · ${Math.round(p.pct || 0)}%` : "—"}</td>
                   <td data-label="CPR">{formatCpr(k.type as CampaignType, spend, results)}</td>
                 </tr>
               ))}

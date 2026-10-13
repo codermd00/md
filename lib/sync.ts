@@ -5,6 +5,7 @@ import { leadsOf, resultFor, typeFromGoal, type CampaignType } from "./results";
 import { previousPeriod } from "./progress";
 import { syncBreakdowns } from "./sync-breakdown";
 import { syncPosts } from "./sync-posts";
+import { notifyEnabled, sendTelegram } from "./telegram";
 
 const ACCOUNT_STATUS: Record<number, string> = {
   1: "active", 2: "disabled", 3: "unsettled", 7: "pending_review", 8: "pending_settlement",
@@ -91,9 +92,10 @@ export async function syncClient(clientId: string): Promise<{ ok: boolean; detai
     };
 
     const nowIso = new Date().toISOString();
-    await db.from("clients").update({
-      account_status: ACCOUNT_STATUS[acc.account_status] || String(acc.account_status), currency: acc.currency,
-    }).eq("id", c.id);
+    const newStatus = ACCOUNT_STATUS[acc.account_status] || String(acc.account_status);
+    if (newStatus !== "active" && newStatus !== (client as any).account_status && (await notifyEnabled(db, "notify_error")))
+      await sendTelegram(`🚫 Ad account problem — ${c.name}\nStatus: ${newStatus.replace(/_/g, " ")}`);
+    await db.from("clients").update({ account_status: newStatus, currency: acc.currency }).eq("id", c.id);
 
     if (campaigns.length) {
       await db.from("campaigns").upsert(
