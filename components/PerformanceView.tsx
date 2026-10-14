@@ -13,8 +13,9 @@ export type CampaignDTO = {
   spend: number; result: number; cpr: number | null; prevCpr: number | null;
   goalTarget: number | null; goalBudget: number | null; progress: Progress;
   prevSpend: number; prevResult: number; findings: Finding[];
+  impressions: number; clicks: number; reach: number;
 };
-export type AdSetDTO = { id: string; campaignId: string; name: string; effectiveStatus: string; spend: number; results: number };
+export type AdSetDTO = { id: string; campaignId: string; name: string; effectiveStatus: string; spend: number; results: number; impressions: number; clicks: number; reach: number };
 export type BreakdownRow = {
   level: "campaign" | "adset"; entityId: string; dimension: string; key: string;
   spend: number; impressions: number; clicks: number; reach: number; results: number; leads: number; dateTo?: string;

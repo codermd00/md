@@ -46,9 +46,9 @@ export async function runDueAlerts(db: SupabaseClient): Promise<string> {
       if (spend <= 0) continue;
       const cost = res > 0 ? (k.type === "reach" ? (spend / res) * 1000 : spend / res) : null;
       if (cost !== null ? cost > limit : spend > limit)
-        lines.push(`• ${k.name} (${LABEL[k.type] || k.type}): ${cost !== null ? "$" + cost.toFixed(3) : "no results"} per ${k.type === "reach" ? "1,000 reached" : "result"} · limit $${limit} · spend $${spend.toFixed(2)} · results ${res}`);
+        lines.push(`${LABEL[k.type] || k.type}: ${cost !== null ? "$" + cost.toFixed(3) + (k.type === "reach" ? " /1K" : "") : "no results ($" + spend.toFixed(2) + " spent)"}  (limit $${limit})`);
     }
-    if (lines.length && (await sendTelegram(`⚠️ ${c.name} — cost alert (${slot}, today)\n${lines.join("\n")}`))) sent++;
+    if (lines.length && (await sendTelegram(`⚠️ ${c.name}\n${lines.join("\n")}`))) sent++;
   }
   return `alerts ${slot}: ${sent}`;
 }

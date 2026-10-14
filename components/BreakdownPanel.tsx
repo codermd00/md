@@ -4,7 +4,7 @@ import type { AdSetDTO, BreakdownRow, CampaignDTO } from "./PerformanceView";
 import { TYPE_LABEL } from "@/lib/results";
 
 const DIMS = [
-  { id: "region", label: "Region" }, { id: "age", label: "Age" }, { id: "gender", label: "Gender" },
+  { id: "results", label: "Results" }, { id: "region", label: "Region" }, { id: "age", label: "Age" }, { id: "gender", label: "Gender" },
   { id: "platform", label: "Platform" }, { id: "placement", label: "Placement" },
 ] as const;
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -15,7 +15,7 @@ export default function BreakdownPanel({ campaigns, adsets, breakdown, initial }
   campaigns: CampaignDTO[]; adsets: AdSetDTO[]; breakdown: BreakdownRow[]; initial: string;
 }) {
   const [ent, setEnt] = useState(initial);
-  const [dim, setDim] = useState<(typeof DIMS)[number]["id"]>("region");
+  const [dim, setDim] = useState<(typeof DIMS)[number]["id"]>("results");
 
   const info = useMemo(() => {
     const c = campaigns.find((x) => x.id === ent);
@@ -56,6 +56,31 @@ export default function BreakdownPanel({ campaigns, adsets, breakdown, initial }
     })).map((r) => ({ ...r, isBest: !!best && r.key === best.key, isWorst: !!worst && r.key === worst.key && worst.key !== best?.key }));
   }, [breakdown, ent, dim, info]);
 
+  // Results tab: the selected campaign (with its ad sets) or the selected ad set
+  const summary = useMemo(() => {
+    const leadsOf = (id: string) => {
+      const rs = breakdown.filter((b) => b.entityId === id && b.dimension === "platform");
+      return rs.reduce((s, r) => s + r.leads, 0);
+    };
+    const mk = (name: string, type: string, x: { spend: number; results: number; impressions: number; clicks: number; reach: number }, id: string, sub = false) => {
+      const isReach = type === "reach";
+      return {
+        id, name, sub, spend: x.spend, results: x.results, reach: x.reach, leads: leadsOf(id),
+        cpr: x.results > 0 ? (isReach ? (x.spend / x.results) * 1000 : x.spend / x.results) : null,
+        cpm: x.impressions > 0 ? (x.spend / x.impressions) * 1000 : null,
+        ctr: x.impressions > 0 ? (x.clicks / x.impressions) * 100 : null,
+      };
+    };
+    const c = campaigns.find((k) => k.id === ent);
+    if (c) {
+      return [mk(c.name, c.type, { spend: c.spend, results: c.result, impressions: c.impressions, clicks: c.clicks, reach: c.reach }, c.id),
+        ...adsets.filter((a) => a.campaignId === c.id && a.spend > 0).map((a) => mk(a.name, c.type, { spend: a.spend, results: a.results, impressions: a.impressions, clicks: a.clicks, reach: a.reach }, a.id, true))];
+    }
+    const a = adsets.find((x) => x.id === ent);
+    const parent = a && campaigns.find((k) => k.id === a.campaignId);
+    return a && parent ? [mk(a.name, parent.type, { spend: a.spend, results: a.results, impressions: a.impressions, clicks: a.clicks, reach: a.reach }, a.id)] : [];
+  }, [breakdown, ent, campaigns, adsets]);
+
   const cprFmt = (v: number | null) => v === null ? "—" : "$" + (v < 0.01 ? v.toFixed(3) : v.toFixed(2)) + (info?.type === "reach" ? " /1K" : "");
   const noResults = rows.length > 0 && !rows.some((r) => r.results > 0);
   const best = rows.find((r) => r.isBest), worst = rows.find((r) => r.isWorst);
@@ -78,7 +103,25 @@ export default function BreakdownPanel({ campaigns, adsets, breakdown, initial }
       <div className="btabs">
         {DIMS.map((d) => <span key={d.id} className={`btab ${dim === d.id ? "on" : ""}`} onClick={() => setDim(d.id)}>{d.label}</span>)}
       </div>
-      {rows.length === 0 ? (
+      {dim === "results" ? (
+        summary.length === 0 ? <div className="empty" style={{ padding: 24 }}><b>No data yet</b></div> : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="bt" key="results">
+              <thead><tr><th>Name</th><th>Spend</th><th>Results</th><th>CPR</th><th>Reach</th><th>CPM</th><th>CTR</th><th>Leads</th></tr></thead>
+              <tbody>
+                {summary.map((r) => (
+                  <tr key={r.id}>
+                    <td style={r.sub ? { paddingLeft: 22, color: "var(--t2)" } : { fontWeight: 700 }}>{r.sub ? "↳ " : ""}{r.name}</td>
+                    <td>{money(r.spend)}</td><td>{num(r.results)}</td>
+                    <td>{r.cpr === null ? "—" : "$" + (r.cpr < 0.01 ? r.cpr.toFixed(3) : r.cpr.toFixed(2)) + (info?.type === "reach" ? " /1K" : "")}</td>
+                    <td>{num(r.reach)}</td><td>{r.cpm === null ? "—" : "$" + r.cpm.toFixed(2)}</td><td>{r.ctr === null ? "—" : r.ctr.toFixed(2) + "%"}</td><td>{num(r.leads)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : rows.length === 0 ? (
         <div className="empty" style={{ padding: 24 }}><b>No data yet</b>Run Sync now from Clients.</div>
       ) : (
         <div style={{ overflowX: "auto" }}>

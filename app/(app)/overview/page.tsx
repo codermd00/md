@@ -32,7 +32,7 @@ export default async function OverviewPage() {
   const today = todayStr();
   const dayAgo = new Date(Date.now() - 86400000).toISOString();
 
-  const [{ data: clients }, { data: setRows }, { data: camps }, { data: logs }, { data: orders }, { data: todayOrders }, { data: tasks }, { data: notes }, spendToday] = await Promise.all([
+  const [{ data: clients }, { data: setRows }, { data: camps }, { data: logs }, { data: orders }, { data: todayOrders }, { data: tasks }, { data: notes }, spendToday, { count: readyPosts }] = await Promise.all([
     sb.from("clients").select("id,name,period_start,period_end,budget,account_status,synced_at").order("name"),
     sb.from("settings").select("key,value").eq("key", "late_threshold"),
     sb.from("campaigns").select("id,client_id,name,type"),
@@ -42,6 +42,7 @@ export default async function OverviewPage() {
     sb.from("tasks").select("id,title,priority,due_date,client_id").eq("status", "pending").order("due_date", { ascending: true, nullsFirst: false }).limit(20),
     sb.from("notes").select("id,body,created_at").order("created_at", { ascending: false }).limit(3),
     sb.from("insights_daily").select("spend").eq("level", "campaign").eq("day", today).then((r: any) => r.data || []),
+    sb.from("posts").select("id", { count: "exact", head: true }).eq("status", "ready").eq("hidden", false),
   ]);
   const threshold = Number((setRows || [])[0]?.value) || 95;
   const cl: any[] = clients || [];
@@ -77,7 +78,6 @@ export default async function OverviewPage() {
   const active = cl.filter((c) => c.account_status === "active").length;
   const disabled = cl.filter((c) => c.account_status && c.account_status !== "active");
   const finished = cl.filter((c) => c.period_end && c.period_end < today);
-  const ready = cl.filter((c) => c.account_status === "active" && (!c.period_start || c.period_start > today));
   const ordersToday = (todayOrders || []).length;
   const ordersByClient = new Map<string, number>();
   for (const o of (todayOrders || []) as any[]) ordersByClient.set(o.client_id, (ordersByClient.get(o.client_id) || 0) + 1);
@@ -129,7 +129,7 @@ export default async function OverviewPage() {
             {tile("Active Accounts", active)}
             {tile("Disabled", disabled.length, "bad")}
             {tile("Finished", finished.length)}
-            {tile("Ready", ready.length)}
+            {tile("Ready Posts", readyPosts || 0)}
             {tile("Today's Orders", ordersToday)}
             {tile("Goal At Risk", risky.length, "bad")}
           </div>

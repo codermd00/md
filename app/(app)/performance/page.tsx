@@ -56,7 +56,8 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
 
   const adsets: AdSetDTO[] = (adsetRows || []).map((a: any) => {
     const r = adsetRanges.find((x: any) => x.entity_id === a.id);
-    return { id: a.id, campaignId: a.campaign_id, name: a.name, effectiveStatus: a.effective_status || "", spend: r ? Number(r.spend) : 0, results: r ? Number(r.results) : 0 };
+    return { id: a.id, campaignId: a.campaign_id, name: a.name, effectiveStatus: a.effective_status || "", spend: r ? Number(r.spend) : 0, results: r ? Number(r.results) : 0,
+      impressions: r ? Number(r.impressions) : 0, clicks: r ? Number(r.clicks) : 0, reach: r ? Number(r.reach) : 0 };
   });
 
   const campaigns: CampaignDTO[] = (camps || [])
@@ -86,7 +87,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       return {
         findings, prevSpend: pr ? Number(pr.spend) : 0, prevResult: pr ? Number(pr.results) : 0,
         id: k.id, name: k.name, type: k.type, status: k.effective_status || k.status || "",
-        spend, result,
+        spend, result, impressions: cur ? Number(cur.impressions) : 0, clicks: cur ? Number(cur.clicks) : 0, reach: cur ? Number(cur.reach) : 0,
         cpr: cprValue(k.type, spend, result),
         prevCpr: pr ? cprValue(k.type, Number(pr.spend), Number(pr.results)) : null,
         goalTarget: g?.target != null ? Number(g.target) : null,
