@@ -73,3 +73,11 @@ export function leadsOf(row: Row): number {
   const any = (row.actions || []).filter((a) => /lead/i.test(a.action_type)).map((a) => Number(a.value) || 0);
   return any.length ? Math.max(...any) : 0;
 }
+
+/** Instagram follows attributed to the ads (Ads Manager "Instagram follows") */
+export function followsOf(row: Row): number {
+  const known = pick(row, ["follow", "onsite_conversion.follow", "instagram_profile_follow"]);
+  if (known) return known;
+  const any = (row.actions || []).filter((a) => /follow/i.test(a.action_type)).map((a) => Number(a.value) || 0);
+  return any.length ? Math.max(...any) : 0;
+}

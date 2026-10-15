@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { graphAll } from "./meta";
-import { leadsOf, resultFor, type CampaignType } from "./results";
+import { followsOf, leadsOf, resultFor, type CampaignType } from "./results";
 
 export const DIMENSIONS = ["region", "age", "gender", "platform", "placement"] as const;
 export type Dimension = (typeof DIMENSIONS)[number];
@@ -66,13 +66,14 @@ export async function syncBreakdowns(
         const id = entity + "|" + key;
         const cur = agg.get(id) || {
           level, entity_id: entity, date_from: o.from, date_to: o.to, dimension: dim, key,
-          spend: 0, impressions: 0, clicks: 0, reach: 0, results: 0, leads: 0, synced_at: now,
+          spend: 0, impressions: 0, clicks: 0, reach: 0, results: 0, leads: 0, follows: 0, synced_at: now,
         };
         cur.spend += Number(r.spend) || 0;
         cur.impressions += Number(r.impressions) || 0;
         cur.clicks += Number(r.clicks) || 0;
         cur.reach += Number(r.reach) || 0;
         cur.results += resultFor(typeOfCamp.get(k.id) || k.type, r);
+        cur.follows += followsOf(r);
         cur.leads += leadsOf(r); // Meta leads الحقيقية (Lead)
         agg.set(id, cur);
       }

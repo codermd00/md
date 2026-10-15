@@ -13,12 +13,12 @@ export type CampaignDTO = {
   spend: number; result: number; cpr: number | null; prevCpr: number | null;
   goalTarget: number | null; goalBudget: number | null; progress: Progress;
   prevSpend: number; prevResult: number; findings: Finding[];
-  impressions: number; clicks: number; reach: number;
+  impressions: number; clicks: number; reach: number; follows: number;
 };
-export type AdSetDTO = { id: string; campaignId: string; name: string; effectiveStatus: string; spend: number; results: number; impressions: number; clicks: number; reach: number };
+export type AdSetDTO = { id: string; campaignId: string; name: string; effectiveStatus: string; spend: number; results: number; impressions: number; clicks: number; reach: number; follows: number };
 export type BreakdownRow = {
   level: "campaign" | "adset"; entityId: string; dimension: string; key: string;
-  spend: number; impressions: number; clicks: number; reach: number; results: number; leads: number; dateTo?: string;
+  spend: number; impressions: number; clicks: number; reach: number; results: number; leads: number; follows: number; dateTo?: string;
 };
 export type DailyRow = { campaignId: string; day: string; spend: number; results: number };
 type ClientInfo = { id: string; name: string; periodStart: string | null; periodEnd: string | null; budget: number };

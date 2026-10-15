@@ -56,7 +56,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       ? sb.from("insights_range").select("*").eq("level", "adset").eq("date_from", vStart).in("entity_id", adsetIds).then((r: any) => r.data || [])
       : [],
     ids.length && vStart
-      ? fetchAll<any>((a, b) => sb.from("insights_breakdown").select("level,entity_id,date_to,dimension,key,spend,impressions,clicks,reach,results,leads")
+      ? fetchAll<any>((a, b) => sb.from("insights_breakdown").select("level,entity_id,date_to,dimension,key,spend,impressions,clicks,reach,results,leads,follows")
           .eq("date_from", vStart).in("entity_id", [...ids, ...adsetIds]).range(a, b) as any)
       : [],
     vStart ? sb.from("campaign_goals").select("*").eq("period_start", vStart).in("campaign_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]).then((r: any) => r.data || []) : [],
@@ -69,7 +69,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
   const adsets: AdSetDTO[] = (adsetRows || []).map((a: any) => {
     const r = adsetRanges.find((x: any) => x.entity_id === a.id);
     return { id: a.id, campaignId: a.campaign_id, name: a.name, effectiveStatus: a.effective_status || "", spend: r ? Number(r.spend) : 0, results: r ? Number(r.results) : 0,
-      impressions: r ? Number(r.impressions) : 0, clicks: r ? Number(r.clicks) : 0, reach: r ? Number(r.reach) : 0 };
+      impressions: r ? Number(r.impressions) : 0, clicks: r ? Number(r.clicks) : 0, reach: r ? Number(r.reach) : 0, follows: r ? Number(r.follows) || 0 : 0 };
   });
 
   const campaigns: CampaignDTO[] = (camps || [])
@@ -99,7 +99,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       return {
         findings, prevSpend: pr ? Number(pr.spend) : 0, prevResult: pr ? Number(pr.results) : 0,
         id: k.id, name: k.name, type: k.type, status: k.effective_status || k.status || "",
-        spend, result, impressions: cur ? Number(cur.impressions) : 0, clicks: cur ? Number(cur.clicks) : 0, reach: cur ? Number(cur.reach) : 0,
+        spend, result, impressions: cur ? Number(cur.impressions) : 0, clicks: cur ? Number(cur.clicks) : 0, reach: cur ? Number(cur.reach) : 0, follows: cur ? Number(cur.follows) || 0 : 0,
         cpr: cprValue(k.type, spend, result),
         prevCpr: pr ? cprValue(k.type, Number(pr.spend), Number(pr.results)) : null,
         goalTarget: g?.target != null ? Number(g.target) : null,
@@ -116,7 +116,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
 
   const bdRows: BreakdownRow[] = breakdown.map((b: any) => ({
     level: b.level, entityId: b.entity_id, dateTo: b.date_to, dimension: b.dimension, key: b.key,
-    spend: Number(b.spend), impressions: Number(b.impressions), clicks: Number(b.clicks), reach: Number(b.reach), results: Number(b.results), leads: Number(b.leads) || 0,
+    spend: Number(b.spend), impressions: Number(b.impressions), clicks: Number(b.clicks), reach: Number(b.reach), results: Number(b.results), leads: Number(b.leads) || 0, follows: Number(b.follows) || 0,
   }));
 
   return (

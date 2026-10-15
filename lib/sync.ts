@@ -1,7 +1,7 @@
 import { createAdminSupabase } from "./supabase/server";
 import { graph, graphAll, graphIds } from "./meta";
 import { addDays, minDate, todayStr } from "./dates";
-import { leadsOf, resultFor, typeFromGoal, type CampaignType } from "./results";
+import { followsOf, leadsOf, resultFor, typeFromGoal, type CampaignType } from "./results";
 import { previousPeriod } from "./progress";
 import { syncBreakdowns } from "./sync-breakdown";
 import { syncPosts } from "./sync-posts";
@@ -136,7 +136,7 @@ export async function syncClient(clientId: string): Promise<{ ok: boolean; detai
       level, entity_id: entity, date_from: from, date_to: to,
       spend: Number(r.spend) || 0, impressions: Number(r.impressions) || 0, clicks: Number(r.clicks) || 0,
       reach: Number(r.reach) || 0, frequency: r.frequency ? Number(r.frequency) : null,
-      results: resultFor(type, r), result_type: type, synced_at: nowIso,
+      results: resultFor(type, r), follows: followsOf(r), result_type: type, synced_at: nowIso,
     });
     for (const r of campIns) {
       const k = campUuid.get(r.campaign_id);

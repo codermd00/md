@@ -62,10 +62,10 @@ export default function BreakdownPanel({ campaigns, adsets, breakdown, initial }
       const rs = breakdown.filter((b) => b.entityId === id && b.dimension === "platform");
       return rs.reduce((s, r) => s + r.leads, 0);
     };
-    const mk = (name: string, type: string, x: { spend: number; results: number; impressions: number; clicks: number; reach: number }, id: string, sub = false) => {
+    const mk = (name: string, type: string, x: { spend: number; results: number; impressions: number; clicks: number; reach: number; follows: number }, id: string, sub = false) => {
       const isReach = type === "reach";
       return {
-        id, name, sub, spend: x.spend, results: x.results, reach: x.reach, leads: leadsOf(id),
+        id, name, sub, spend: x.spend, results: x.results, reach: x.reach, leads: leadsOf(id), follows: x.follows,
         cpr: x.results > 0 ? (isReach ? (x.spend / x.results) * 1000 : x.spend / x.results) : null,
         cpm: x.impressions > 0 ? (x.spend / x.impressions) * 1000 : null,
         ctr: x.impressions > 0 ? (x.clicks / x.impressions) * 100 : null,
@@ -73,12 +73,12 @@ export default function BreakdownPanel({ campaigns, adsets, breakdown, initial }
     };
     const c = campaigns.find((k) => k.id === ent);
     if (c) {
-      return [mk(c.name, c.type, { spend: c.spend, results: c.result, impressions: c.impressions, clicks: c.clicks, reach: c.reach }, c.id),
-        ...adsets.filter((a) => a.campaignId === c.id && a.spend > 0).map((a) => mk(a.name, c.type, { spend: a.spend, results: a.results, impressions: a.impressions, clicks: a.clicks, reach: a.reach }, a.id, true))];
+      return [mk(c.name, c.type, { spend: c.spend, results: c.result, impressions: c.impressions, clicks: c.clicks, reach: c.reach, follows: c.follows }, c.id),
+        ...adsets.filter((a) => a.campaignId === c.id && a.spend > 0).map((a) => mk(a.name, c.type, { spend: a.spend, results: a.results, impressions: a.impressions, clicks: a.clicks, reach: a.reach, follows: a.follows }, a.id, true))];
     }
     const a = adsets.find((x) => x.id === ent);
     const parent = a && campaigns.find((k) => k.id === a.campaignId);
-    return a && parent ? [mk(a.name, parent.type, { spend: a.spend, results: a.results, impressions: a.impressions, clicks: a.clicks, reach: a.reach }, a.id)] : [];
+    return a && parent ? [mk(a.name, parent.type, { spend: a.spend, results: a.results, impressions: a.impressions, clicks: a.clicks, reach: a.reach, follows: a.follows }, a.id)] : [];
   }, [breakdown, ent, campaigns, adsets]);
 
   const cprFmt = (v: number | null) => v === null ? "—" : "$" + (v < 0.01 ? v.toFixed(3) : v.toFixed(2)) + (info?.type === "reach" ? " /1K" : "");
@@ -107,14 +107,14 @@ export default function BreakdownPanel({ campaigns, adsets, breakdown, initial }
         summary.length === 0 ? <div className="empty" style={{ padding: 24 }}><b>No data yet</b></div> : (
           <div style={{ overflowX: "auto" }}>
             <table className="bt" key="results">
-              <thead><tr><th>Name</th><th>Spend</th><th>Results</th><th>CPR</th><th>Reach</th><th>CPM</th><th>CTR</th><th>Leads</th></tr></thead>
+              <thead><tr><th>Name</th><th>Spend</th><th>Results</th><th>CPR</th><th>Reach</th><th>CPM</th><th>CTR</th><th>Leads</th><th>Follows</th></tr></thead>
               <tbody>
                 {summary.map((r) => (
                   <tr key={r.id}>
                     <td style={r.sub ? { paddingLeft: 22, color: "var(--t2)" } : { fontWeight: 700 }}>{r.sub ? "↳ " : ""}{r.name}</td>
                     <td>{money(r.spend)}</td><td>{num(r.results)}</td>
                     <td>{r.cpr === null ? "—" : "$" + (r.cpr < 0.01 ? r.cpr.toFixed(3) : r.cpr.toFixed(2)) + (info?.type === "reach" ? " /1K" : "")}</td>
-                    <td>{num(r.reach)}</td><td>{r.cpm === null ? "—" : "$" + r.cpm.toFixed(2)}</td><td>{r.ctr === null ? "—" : r.ctr.toFixed(2) + "%"}</td><td>{num(r.leads)}</td>
+                    <td>{num(r.reach)}</td><td>{r.cpm === null ? "—" : "$" + r.cpm.toFixed(2)}</td><td>{r.ctr === null ? "—" : r.ctr.toFixed(2) + "%"}</td><td>{num(r.leads)}</td><td>{num(r.follows)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -127,14 +127,14 @@ export default function BreakdownPanel({ campaigns, adsets, breakdown, initial }
         <div style={{ overflowX: "auto" }}>
           <table className="bt" key={ent + "|" + dim}>
             <thead><tr>
-              <th>{DIMS.find((d) => d.id === dim)!.label}</th><th>Spend</th><th>% Spend</th><th>Results</th><th>Meta leads</th>
+              <th>{DIMS.find((d) => d.id === dim)!.label}</th><th>Spend</th><th>% Spend</th><th>Results</th><th>Meta leads</th><th>Follows</th>
               {info?.type !== "reach" && <th>% Results</th>}<th>CPR</th><th>vs Avg</th>
             </tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={dim + "|" + r.key} className={r.isBest ? "best" : r.isWorst ? "worst" : ""}>
                   <td>{r.key}{r.small && <span className="sm"> · small sample</span>}</td>
-                  <td>{money(r.spend)}</td><td>{Math.round(r.spendShare)}%</td><td>{num(r.results)}</td><td>{num(r.leads)}</td>
+                  <td>{money(r.spend)}</td><td>{Math.round(r.spendShare)}%</td><td>{num(r.results)}</td><td>{num(r.leads)}</td><td>{num(r.follows)}</td>
                   {info?.type !== "reach" && <td>{r.resShare !== null ? Math.round(r.resShare) + "%" : "—"}</td>}
                   <td>{cprFmt(r.cpr)}</td>
                   <td>{r.vs === null || r.small ? "—" : <b style={{ color: r.vs <= 0 ? "var(--green)" : "var(--red)" }}>{r.vs <= 0 ? "▼" : "▲"} {Math.abs(Math.round(r.vs))}%</b>}</td>
