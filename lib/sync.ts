@@ -14,7 +14,7 @@ const ACCOUNT_STATUS: Record<number, string> = {
 
 type Client = { id: string; name: string; ad_account_id: string; period_start: string | null; period_end: string | null; ig_user_id: string | null; run_posts: boolean };
 
-const INSIGHT_FIELDS = "campaign_id,spend,impressions,clicks,reach,frequency,actions,instagram_profile_visits,instagram_profile_follow";
+const INSIGHT_FIELDS = "campaign_id,spend,impressions,clicks,reach,frequency,actions,instagram_profile_visits";
 const FINAL_AFTER_DAYS = 7; // بعد انتهاء الفترة بأسبوع تُعتبر أرقامها نهائية (نافذة إسناد 7 أيام) ولا تُجلب ثانيةً
 
 /**
@@ -151,6 +151,22 @@ export async function syncClient(clientId: string): Promise<{ ok: boolean; detai
       const k = campUuid.get(r.campaign_id);
       if (k) await db.from("campaigns").update({ last_spend: Number(r.spend) || 0 }).eq("id", k.id);
     }
+
+    // Instagram follows: separate field, needs the same attribution setup as Ads Manager (best effort)
+    try {
+      for (const level of ["campaign", "adset"] as const) {
+        const fr = await graphAll<any>(`${act}/insights`, {
+          level, fields: level === "adset" ? "campaign_id,adset_id,instagram_profile_follow" : "campaign_id,instagram_profile_follow",
+          time_range: range, use_unified_attribution_setting: "true", action_attribution_windows: JSON.stringify(["1d_click", "7d_click", "1d_view"]),
+        }, 40);
+        for (const r of fr) {
+          const n = Number(r.instagram_profile_follow) || 0;
+          const ent = level === "campaign" ? campUuid.get(r.campaign_id)?.id : adsetUuid.get(r.adset_id);
+          if (!n || !ent) continue;
+          await db.from("insights_range").update({ follows: n }).eq("level", level).eq("entity_id", ent).eq("date_from", from).eq("date_to", to);
+        }
+      }
+    } catch { /* follows are optional */ }
 
     // 4) بالتوازي: اليومي التراكمي + الفترة السابقة (مرة واحدة) + التوزيع (بمهلة ساعة)
     const dailyTask = async () => {

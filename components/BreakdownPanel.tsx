@@ -127,14 +127,14 @@ export default function BreakdownPanel({ campaigns, adsets, breakdown, initial }
         <div style={{ overflowX: "auto" }}>
           <table className="bt" key={ent + "|" + dim}>
             <thead><tr>
-              <th>{DIMS.find((d) => d.id === dim)!.label}</th><th>Spend</th><th>% Spend</th><th>Results</th><th>Meta leads</th><th>Follows</th>
+              <th>{DIMS.find((d) => d.id === dim)!.label}</th><th>Spend</th><th>% Spend</th><th>Results</th><th>Meta leads</th>
               {info?.type !== "reach" && <th>% Results</th>}<th>CPR</th><th>vs Avg</th>
             </tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={dim + "|" + r.key} className={r.isBest ? "best" : r.isWorst ? "worst" : ""}>
                   <td>{r.key}{r.small && <span className="sm"> · small sample</span>}</td>
-                  <td>{money(r.spend)}</td><td>{Math.round(r.spendShare)}%</td><td>{num(r.results)}</td><td>{num(r.leads)}</td><td>{num(r.follows)}</td>
+                  <td>{money(r.spend)}</td><td>{Math.round(r.spendShare)}%</td><td>{num(r.results)}</td><td>{num(r.leads)}</td>
                   {info?.type !== "reach" && <td>{r.resShare !== null ? Math.round(r.resShare) + "%" : "—"}</td>}
                   <td>{cprFmt(r.cpr)}</td>
                   <td>{r.vs === null || r.small ? "—" : <b style={{ color: r.vs <= 0 ? "var(--green)" : "var(--red)" }}>{r.vs <= 0 ? "▼" : "▲"} {Math.abs(Math.round(r.vs))}%</b>}</td>
