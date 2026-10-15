@@ -30,9 +30,9 @@ export async function refreshPosts(clientId?: string, count?: number): Promise<{
 export type TargetAdSet = { id: string; name: string; status: string; goal: string };
 export type TargetCampaign = { id: string; name: string; status: string; adsets: TargetAdSet[] };
 
-const GOALS = new Set(["REACH", "POST_ENGAGEMENT", "IMPRESSIONS"]);
+const GOALS = new Set(["REACH", "POST_ENGAGEMENT", "IMPRESSIONS", "VISIT_INSTAGRAM_PROFILE"]);
 
-/** حملات (وصول/تفاعل فقط) ومجموعاتها من Meta مباشرة — تُجلب عند فتح نافذة المنشور */
+/** حملات (وصول/تفاعل/زيارة بروفايل) ومجموعاتها من Meta مباشرة — تُجلب عند فتح نافذة المنشور */
 export async function listTargets(clientId: string): Promise<{ ok: boolean; message: string; campaigns: TargetCampaign[] }> {
   const sb = await requireUser();
   const { data: c } = await sb.from("clients").select("ad_account_id,period_start").eq("id", clientId).single();
@@ -56,7 +56,7 @@ export async function listTargets(clientId: string): Promise<{ ok: boolean; mess
       byCamp.set(s.campaign.id, k);
     }
     const list = [...byCamp.values()].sort((a, b) => (a.status === "ACTIVE" ? 0 : 1) - (b.status === "ACTIVE" ? 0 : 1) || a.name.localeCompare(b.name));
-    return { ok: true, message: list.length ? "" : "No reach/engagement campaigns in this account", campaigns: list };
+    return { ok: true, message: list.length ? "" : "No reach, engagement or profile visit campaigns in this account", campaigns: list };
   } catch (e: any) {
     return { ok: false, message: e?.message || "Meta fetch failed", campaigns: [] };
   }
