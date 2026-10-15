@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export default async function ContentPage() {
   const sb = createServerSupabase();
   const [{ data: clients }, { data: posts }] = await Promise.all([
-    sb.from("clients").select("id,name,ig_user_id,run_posts,account_status").eq("run_posts", true).order("name"),
+    sb.from("clients").select("id,name,ig_user_id,run_posts,account_status").order("name"),
     sb.from("posts").select("*").eq("hidden", false).order("posted_at", { ascending: false }).limit(300),
   ]);
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -21,5 +21,5 @@ export default async function ContentPage() {
     campId: p.meta_campaign_id || "", campName: p.meta_campaign_name || "", adsetId: p.meta_adset_id || "", adsetName: p.meta_adset_name || "",
     error: p.error || "", accountStatus: statusOf.get(p.client_id) || "",
   }));
-  return <ContentView clients={(clients || []).map((c: any) => ({ id: c.id, name: c.name, hasIg: !!c.ig_user_id }))} posts={cards} />;
+  return <ContentView clients={(clients || []).map((c: any) => ({ id: c.id, name: c.name, hasIg: !!c.ig_user_id, watch: !!c.run_posts }))} posts={cards} />;
 }

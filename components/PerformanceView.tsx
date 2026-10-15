@@ -37,8 +37,10 @@ const TYPES: CampaignType[] = ["messages", "reach", "visit", "engagement"];
 export default function PerformanceView(props: {
   clients: { id: string; name: string }[]; client: ClientInfo | null;
   campaigns: CampaignDTO[]; adsets: AdSetDTO[]; breakdown: BreakdownRow[]; daily: DailyRow[]; today: string; threshold: number;
+  periods?: { from: string; to: string }[]; periodSel?: string;
 }) {
   const { clients, client, campaigns, adsets, breakdown, daily, threshold, today } = props;
+  const periods = props.periods || [], periodSel = props.periodSel || "";
   const router = useRouter();
   const [sel, setSel] = useState(campaigns.find((c) => c.type === "messages")?.id || "all");
   const [edit, setEdit] = useState<CampaignDTO | null>(null);
@@ -127,12 +129,18 @@ export default function PerformanceView(props: {
       <div className="topbar" style={{ marginBottom: 14 }}>
         <div>
           <div className="h1" style={{ fontSize: 20 }}>Performance</div>
-          <div className="sub">{client.periodStart || "—"} → {client.periodEnd || "—"} · {money(client.budget)}</div>
+          <div className="sub">{client.periodStart || "—"} → {client.periodEnd || "—"}{periodSel ? " · Archive" : ` · ${money(client.budget)}`}</div>
         </div>
         <div className="pbar">
           <select value={client.id} onChange={(e) => router.push(`/performance?client=${e.target.value}`)}>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          {periods.length > 0 && (
+            <select value={periodSel} onChange={(e) => router.push(`/performance?client=${client.id}${e.target.value ? `&period=${e.target.value}` : ""}`)}>
+              <option value="">Current period</option>
+              {periods.map((p) => <option key={p.from} value={p.from}>{p.from} → {p.to}</option>)}
+            </select>
+          )}
           <select value={sel} onChange={(e) => setSel(e.target.value)}>
             <option value="all">All campaigns</option>
             {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name} · {TYPE_LABEL[c.type]}</option>)}

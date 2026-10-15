@@ -18,7 +18,7 @@ async function fetchAll<T>(q: (from: number, to: number) => PromiseLike<{ data: 
   return out;
 }
 
-export default async function PerformancePage({ searchParams }: { searchParams: { client?: string } }) {
+export default async function PerformancePage({ searchParams }: { searchParams: { client?: string; period?: string } }) {
   const sb = createServerSupabase();
   const today = todayStr();
   const [{ data: clients }, { data: setRows }] = await Promise.all([
@@ -31,7 +31,19 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
 
   if (!client) return <PerformanceView clients={[]} client={null} campaigns={[]} adsets={[]} breakdown={[]} daily={[]} today={today} threshold={threshold} />;
 
-  const prev = client.period_start && client.period_end ? previousPeriod(client.period_start, client.period_end) : null;
+  // Archive: periods that were current before; ?period=<date_from> shows one of them
+  const { data: periodRows } = await sb.from("insights_range").select("date_from,date_to").eq("level", "account").eq("entity_id", client.id).order("date_from", { ascending: false });
+  const archive: { from: string; to: string }[] = [];
+  for (const r of (periodRows || []) as any[]) {
+    if (r.date_from === client.period_start || archive.some((a) => a.from === r.date_from)) continue;
+    archive.push({ from: r.date_from, to: r.date_to });
+  }
+  const arch = archive.find((a) => a.from === searchParams.period);
+  const vStart: string | null = arch ? arch.from : client.period_start;
+  const vEnd: string | null = arch ? arch.to : client.period_end;
+  const vToday = arch && arch.to < today ? arch.to : today;
+
+  const prev = vStart && vEnd ? previousPeriod(vStart, vEnd) : null;
   const { data: camps } = await sb.from("campaigns").select("*").eq("client_id", client.id);
   const ids = (camps || []).map((k: any) => k.id);
 
@@ -40,17 +52,17 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
 
   const [ranges, adsetRanges, breakdown, goals, daily] = await Promise.all([
     ids.length ? sb.from("insights_range").select("*").eq("level", "campaign").in("entity_id", ids).order("synced_at", { ascending: false }).then((r: any) => r.data || []) : [],
-    adsetIds.length && client.period_start
-      ? sb.from("insights_range").select("*").eq("level", "adset").eq("date_from", client.period_start).in("entity_id", adsetIds).then((r: any) => r.data || [])
+    adsetIds.length && vStart
+      ? sb.from("insights_range").select("*").eq("level", "adset").eq("date_from", vStart).in("entity_id", adsetIds).then((r: any) => r.data || [])
       : [],
-    ids.length && client.period_start
+    ids.length && vStart
       ? fetchAll<any>((a, b) => sb.from("insights_breakdown").select("level,entity_id,date_to,dimension,key,spend,impressions,clicks,reach,results,leads")
-          .eq("date_from", client.period_start).in("entity_id", [...ids, ...adsetIds]).range(a, b) as any)
+          .eq("date_from", vStart).in("entity_id", [...ids, ...adsetIds]).range(a, b) as any)
       : [],
-    client.period_start ? sb.from("campaign_goals").select("*").eq("period_start", client.period_start).in("campaign_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]).then((r: any) => r.data || []) : [],
+    vStart ? sb.from("campaign_goals").select("*").eq("period_start", vStart).in("campaign_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]).then((r: any) => r.data || []) : [],
     fetchAll<any>((a, b) =>
       sb.from("insights_daily").select("entity_id,day,spend,results,impressions,clicks").eq("client_id", client.id).eq("level", "campaign")
-        .gte("day", client.period_start || addDays(today, -45)).order("day").range(a, b) as any
+        .gte("day", vStart || addDays(today, -45)).lte("day", arch ? arch.to : "9999-12-31").order("day").range(a, b) as any
     ),
   ]);
 
@@ -62,13 +74,13 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
 
   const campaigns: CampaignDTO[] = (camps || [])
     .map((k: any) => {
-      const cur = ranges.find((r: any) => r.entity_id === k.id && (!client.period_start || r.date_from === client.period_start));
+      const cur = ranges.find((r: any) => r.entity_id === k.id && (!vStart || r.date_from === vStart));
       const pr = prev ? ranges.find((r: any) => r.entity_id === k.id && r.date_from === prev.from) : null;
       const g = goals.find((x: any) => x.campaign_id === k.id);
       const spend = cur ? Number(cur.spend) : 0;
       const result = cur ? Number(cur.results) : 0;
       const progress = computeProgress({
-        type: k.type, periodStart: client.period_start, periodEnd: client.period_end, today,
+        type: k.type, periodStart: vStart, periodEnd: vEnd, today: vToday,
         result, spend, goalTarget: g?.target != null ? Number(g.target) : null,
         goalBudget: g?.budget != null ? Number(g.budget) : null, threshold,
       });
@@ -82,7 +94,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
         cpr: cprNow, prevCpr: prevCprV, frequency: cur?.frequency != null ? Number(cur.frequency) : null,
         progress, goalBudget: g?.budget != null ? Number(g.budget) : null,
         daily: own, adsets: adsets.filter((a) => a.campaignId === k.id).map((a) => ({ name: a.name, effectiveStatus: a.effectiveStatus, spend: a.spend, results: a.results })),
-        periodStart: client.period_start, periodEnd: client.period_end, today,
+        periodStart: vStart, periodEnd: vEnd, today: vToday,
       });
       return {
         findings, prevSpend: pr ? Number(pr.spend) : 0, prevResult: pr ? Number(pr.results) : 0,
@@ -111,10 +123,10 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
     <PerformanceView
       clients={list.map((c: any) => ({ id: c.id, name: c.name }))}
       client={{
-        id: client.id, name: client.name, periodStart: client.period_start, periodEnd: client.period_end,
+        id: client.id, name: client.name, periodStart: vStart, periodEnd: vEnd,
         budget: Number(client.budget) || 0
       }}
-      campaigns={campaigns} adsets={adsets} breakdown={bdRows} daily={dailyRows} today={today} threshold={threshold}
+      periods={archive} periodSel={arch ? arch.from : ""} campaigns={campaigns} adsets={adsets} breakdown={bdRows} daily={dailyRows} today={vToday} threshold={threshold}
     />
   );
 }

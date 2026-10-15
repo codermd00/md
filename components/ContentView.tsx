@@ -18,7 +18,7 @@ const ST: Record<string, { label: string; cls: string }> = {
 const TYPE: Record<string, string> = { IMAGE: "Image", VIDEO: "Video", CAROUSEL_ALBUM: "Carousel" };
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
-export default function ContentView({ clients, posts }: { clients: { id: string; name: string; hasIg: boolean }[]; posts: PostCard[] }) {
+export default function ContentView({ clients, posts }: { clients: { id: string; name: string; hasIg: boolean; watch: boolean }[]; posts: PostCard[] }) {
   const router = useRouter();
   const [tab, setTab] = useState<(typeof TABS)[number][0]>("all");
   const [client, setClient] = useState("");
@@ -31,7 +31,7 @@ export default function ContentView({ clients, posts }: { clients: { id: string;
   const base = useMemo(() => posts.filter((p) => (!client || p.clientId === client) && (!q || (p.shortcode + " " + p.caption + " " + p.clientName).toLowerCase().includes(q.toLowerCase()))), [posts, client, q]);
   const count = (s: string) => (s === "all" ? base.length : base.filter((p) => p.status === s).length);
   const shown = base.filter((p) => tab === "all" || p.status === tab);
-  const noIg = clients.filter((c) => !c.hasIg);
+  const noIg = clients.filter((c) => c.watch && !c.hasIg);
 
   const refresh = (count?: number) => start(async () => { const r = await refreshPosts(client || undefined, count); setMsg(r.message); router.refresh(); });
 
