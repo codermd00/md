@@ -10,7 +10,7 @@ export function typeFromGoal(goal?: string | null): CampaignType {
   return "other";
 }
 
-type Row = { actions?: { action_type: string; value: string }[]; reach?: string; instagram_profile_visits?: string };
+type Row = { actions?: { action_type: string; value: string }[]; reach?: string; instagram_profile_visits?: string; instagram_profile_follow?: string };
 
 const pick = (row: Row, types: string[]) => {
   for (const t of types) {
@@ -76,6 +76,8 @@ export function leadsOf(row: Row): number {
 
 /** Instagram follows attributed to the ads (Ads Manager "Instagram follows") */
 export function followsOf(row: Row): number {
+  const direct = Number(row.instagram_profile_follow);
+  if (direct > 0) return direct;
   const known = pick(row, ["follow", "onsite_conversion.follow", "instagram_profile_follow"]);
   if (known) return known;
   const any = (row.actions || []).filter((a) => /follow/i.test(a.action_type)).map((a) => Number(a.value) || 0);
