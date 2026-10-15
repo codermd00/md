@@ -40,7 +40,7 @@ export async function listTargets(clientId: string): Promise<{ ok: boolean; mess
   try {
     const filter = JSON.stringify([{ field: "effective_status", operator: "IN", value: ["ACTIVE", "PAUSED", "CAMPAIGN_PAUSED", "ADSET_PAUSED", "WITH_ISSUES", "IN_PROCESS"] }]);
     const adsets = await graphAll<any>(`act_${c.ad_account_id}/adsets`, {
-      fields: "id,name,effective_status,optimization_goal,updated_time,created_time,campaign{id,name,effective_status}", filtering: filter,
+      fields: "id,name,effective_status,optimization_goal,destination_type,updated_time,created_time,campaign{id,name,effective_status}", filtering: filter,
     }, 10);
     // ضمن فترة العميل فقط: ما صرف فيها (من قاعدتنا) أو النشط الآن أو ما تغيّر/أُنشئ منذ بداية الفترة
     const since = c.period_start ? new Date(c.period_start + "T00:00:00+03:00").getTime() : Date.now() - 31 * 864e5;
@@ -48,7 +48,9 @@ export async function listTargets(clientId: string): Promise<{ ok: boolean; mess
     const spent = new Set((dbSets || []).map((x: any) => String(x.meta_id)));
     const byCamp = new Map<string, TargetCampaign>();
     for (const s of adsets) {
-      if (!GOALS.has(String(s.optimization_goal)) || !s.campaign?.id) continue;
+      const goal = String(s.optimization_goal);
+      const okGoal = GOALS.has(goal) || /PROFILE|VISIT/.test(goal) || String(s.destination_type) === "INSTAGRAM_PROFILE";
+      if (!okGoal || !s.campaign?.id) continue;
       const recent = Math.max(Date.parse(s.updated_time || "") || 0, Date.parse(s.created_time || "") || 0) >= since;
       if (!(s.effective_status === "ACTIVE" || spent.has(String(s.id)) || recent)) continue;
       const k: TargetCampaign = byCamp.get(s.campaign.id) || { id: s.campaign.id, name: s.campaign.name, status: s.campaign.effective_status, adsets: [] };
@@ -258,4 +260,18 @@ export async function resetPost(id: string): Promise<{ ok: boolean }> {
   const { error } = await sb.from("posts").update({ status: "ready", error: null }).eq("id", id).eq("status", "failed");
   revalidatePath("/content");
   return { ok: !error };
+}
+
+/** نسخة جديدة من نفس المنشور (لتشغيله مرة أخرى على حملة أخرى) — تبقى الأولى كما هي */
+export async function duplicatePost(id: string): Promise<{ ok: boolean; message: string }> {
+  const sb = await requireUser();
+  const { data: p } = await sb.from("posts").select("*").eq("id", id).maybeSingle();
+  if (!p) return { ok: false, message: "Post not found" };
+  const { error } = await sb.from("posts").insert({
+    client_id: p.client_id, ig_media_id: p.ig_media_id, shortcode: p.shortcode, permalink: p.permalink, media_type: p.media_type,
+    caption: p.caption, username: p.username, thumb_path: p.thumb_path, posted_at: p.posted_at, eligible: p.eligible, ineligible_reason: p.ineligible_reason,
+    status: "ready", budget: p.budget, days: p.days, copy_of: p.copy_of || p.id,
+  });
+  revalidatePath("/content");
+  return error ? { ok: false, message: error.message } : { ok: true, message: "New copy added as Ready" };
 }

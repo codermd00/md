@@ -36,7 +36,7 @@ export async function syncPosts(db: SupabaseClient, c: { id: string; name: strin
   }
   if (!items.length) return "";
 
-  const { data: existing } = await db.from("posts").select("id,ig_media_id,thumb_path").eq("client_id", c.id).in("ig_media_id", items.map((m) => m.id));
+  const { data: existing } = await db.from("posts").select("id,ig_media_id,thumb_path").eq("client_id", c.id).is("copy_of", null).in("ig_media_id", items.map((m) => m.id));
   const known = new Map<string, { id: string; thumb_path: string | null }>((existing || []).map((p: any) => [p.ig_media_id, p]));
   const { data: setRows } = await db.from("settings").select("key,value").in("key", ["default_budget", "default_days"]);
   const def = (k: string, d: number) => Number((setRows || []).find((s: any) => s.key === k)?.value) || d;

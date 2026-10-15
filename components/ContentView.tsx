@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
+import { duplicatePost, hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
 
 export type PostCard = {
   id: string; clientId: string; clientName: string; igMediaId: string; shortcode: string; permalink: string; mediaType: string;
@@ -218,6 +218,7 @@ function PostModal({ post, onClose, onDone }: { post: PostCard; onClose: () => v
         {msg && <div className="msg err" dir="auto">{msg}</div>}
         <div className="acts">
           {post.status === "failed" && <button className="btn" onClick={() => start(async () => { await resetPost(post.id); onDone(); })} disabled={pending}>Reset to Ready</button>}
+          {(post.status === "running" || post.status === "done" || post.status === "failed") && <button className="btn" onClick={() => start(async () => { const r = await duplicatePost(post.id); if (r.ok) onDone(); else setMsg(r.message); })} disabled={pending}>Run again</button>}
           {canRun && !plan && <button className="btn" style={{ background: "var(--green)", color: "#fff", borderColor: "transparent" }} onClick={startRun} disabled={pending}>▶ Run</button>}
           <button className="btn" style={{ marginInlineEnd: "auto", color: "var(--red)" }} onClick={del} disabled={pending}>Delete</button>
           <button className="btn" onClick={onClose} disabled={pending}>Cancel</button>
