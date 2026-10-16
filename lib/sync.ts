@@ -146,7 +146,8 @@ export async function syncClient(clientId: string): Promise<{ ok: boolean; detai
       const k = campUuid.get(r.campaign_id), sid = adsetUuid.get(r.adset_id);
       if (k && sid) out.push(rowOf("adset", sid, r, k.type));
     }
-    await db.from("insights_range").upsert(out, { onConflict: "level,entity_id,date_from,date_to" });
+    const { error: upErr } = await db.from("insights_range").upsert(out, { onConflict: "level,entity_id,date_from,date_to" });
+    if (upErr) throw new Error("Saving period numbers failed: " + upErr.message);
     for (const r of campIns) {
       const k = campUuid.get(r.campaign_id);
       if (k) await db.from("campaigns").update({ last_spend: Number(r.spend) || 0 }).eq("id", k.id);

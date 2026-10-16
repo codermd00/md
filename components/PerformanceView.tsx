@@ -51,6 +51,7 @@ export default function PerformanceView(props: {
   const [pending, start] = useTransition();
 
   const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [dayPick, setDayPick] = useState<{ day: string; n: number } | null>(null);
   const picked = sel === "all" ? null : campaigns.find((c) => c.id === sel) || null;
 
@@ -173,11 +174,12 @@ export default function PerformanceView(props: {
             {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name} · {TYPE_LABEL[c.type]}</option>)}
           </select>
           <button className="btn" disabled={!picked} onClick={() => picked && openEdit(picked)} title={picked ? "" : "Select a campaign first"}>Edit goal</button>
-          {!periodSel && <button className="btn" disabled={syncing} onClick={async () => { setSyncing(true); try { await syncNow(client.id); } finally { setSyncing(false); router.refresh(); } }}>{syncing ? "Syncing…" : "Sync"}</button>}
+          {!periodSel && <button className="btn" disabled={syncing} onClick={async () => { setSyncing(true); setSyncMsg(null); try { const r = await syncNow(client.id); setSyncMsg({ ok: r.ok, text: r.message }); } catch (e: any) { setSyncMsg({ ok: false, text: e?.message || "Sync failed" }); } finally { setSyncing(false); router.refresh(); } }}>{syncing ? "Syncing…" : "Sync"}</button>}
         </div>
       </div>
 
       {!client.periodStart && <div className="panel" style={{ marginBottom: 12, color: "var(--orange)" }}>No period set for this client — edit it in Clients.</div>}
+      {syncMsg && <div className={`msg ${syncMsg.ok ? "" : "err"}`} dir="auto" style={{ marginBottom: 10 }}>{syncMsg.text}</div>}
       {campaigns.length === 0 ? (
         <div className="panel empty"><b>No campaigns with spend in this period</b>Check the dates or run Sync now in Clients.</div>
       ) : (
