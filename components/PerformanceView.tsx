@@ -3,6 +3,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import LineChart, { type Series } from "./LineChart";
 import BreakdownPanel from "./BreakdownPanel";
+import AiPanel from "./AiPanel";
 import type { Finding } from "@/lib/diagnose";
 import { saveGoal } from "@/app/(app)/performance/actions";
 import { TYPE_LABEL, type CampaignType } from "@/lib/results";
@@ -294,6 +295,7 @@ export default function PerformanceView(props: {
             </div>
           </div>
           <BreakdownPanel key={sel} campaigns={campaigns} adsets={adsets} breakdown={breakdown} initial={picked ? picked.id : campaigns[0].id} />
+          <AiPanel key={client.id + (client.periodStart || "")} clientId={client.id} periodStart={client.periodStart || undefined} />
         </>
       )}
 

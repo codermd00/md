@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AiPanel from "@/components/AiPanel";
 import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { daysLeft, todayStr } from "@/lib/dates";
@@ -89,6 +90,7 @@ export default async function ClientPage({ params }: { params: { id: string } })
           </table></div>
         )}
       </div>
+      <AiPanel clientId={c.id} />
     </>
   );
 }

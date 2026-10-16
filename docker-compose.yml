@@ -19,6 +19,8 @@ services:
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Baghdad}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      AI_MODELS: ${AI_MODELS:-}
 
   cron:
     build: ./cron
