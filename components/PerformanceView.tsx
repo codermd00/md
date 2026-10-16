@@ -69,6 +69,20 @@ export default function PerformanceView(props: {
     }).filter(Boolean) as { t: CampaignType; result: number; target: number; cpr: number | null; prevCpr: number | null }[];
   }, [campaigns]);
 
+  // Meta leads: sum of the platform breakdown (latest row per campaign + platform)
+  const leadStats = useMemo(() => {
+    const latest = new Map<string, BreakdownRow>();
+    for (const b of breakdown) {
+      if (b.level !== "campaign" || b.dimension !== "platform") continue;
+      if (picked && b.entityId !== picked.id) continue;
+      const k = b.entityId + "|" + b.key, q = latest.get(k);
+      if (!q || (b.dateTo || "") > (q.dateTo || "")) latest.set(k, b);
+    }
+    const leads = [...latest.values()].reduce((x, r) => x + r.leads, 0);
+    const spend = picked ? picked.spend : campaigns.reduce((x, c) => x + c.spend, 0);
+    return { leads, cpl: leads > 0 ? spend / leads : null };
+  }, [breakdown, picked, campaigns]);
+
   const totalSpend = campaigns.reduce((s, c) => s + c.spend, 0);
   const allocated = campaigns.reduce((s, c) => s + (c.goalBudget || 0), 0);
 
@@ -203,6 +217,12 @@ export default function PerformanceView(props: {
                 </div>
               );
             })()}
+
+            <div className="kpi">
+              <div className="l">Leads</div>
+              <div className="v">{num(leadStats.leads)}</div>
+              <div className="n">{leadStats.cpl !== null ? `${money(leadStats.cpl)} per lead` : ""}</div>
+            </div>
 
             <div className="kpi">
               <div className="l">{picked ? "Forecast (end of period)" : "Budget allocated"}</div>
