@@ -130,7 +130,7 @@ export async function syncClient(clientId: string): Promise<{ ok: boolean; detai
     out.push({
       level: "account", entity_id: c.id, date_from: from, date_to: to,
       spend: Number(a?.spend) || 0, impressions: Number(a?.impressions) || 0, clicks: Number(a?.clicks) || 0,
-      reach: Number(a?.reach) || 0, frequency: a?.frequency ? Number(a.frequency) : null, results: 0, result_type: null, synced_at: nowIso,
+      reach: Number(a?.reach) || 0, frequency: a?.frequency ? Number(a.frequency) : null, results: 0, follows: 0, result_type: null, synced_at: nowIso,
     });
     const rowOf = (level: string, entity: string, r: any, type: CampaignType) => ({
       level, entity_id: entity, date_from: from, date_to: to,
