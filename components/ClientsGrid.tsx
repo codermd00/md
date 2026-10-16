@@ -60,6 +60,11 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
     if (!confirm(`Delete ${c.name} and all its data?`)) return;
     start(async () => { const r = await deleteClient(c.id); setMsg({ ok: r.ok, text: r.message }); });
   }
+  const [busyId, setBusyId] = useState<string | null>(null);
+  function syncOne(c: ClientCard) {
+    setBusyId(c.id); setMsg(null);
+    start(async () => { const r = await syncNow(c.id); setMsg({ ok: r.ok, text: `${c.name}: ${r.ok ? "Synced" : r.message}` }); setBusyId(null); });
+  }
   function syncAllNow() {
     start(async () => { const r = await syncNow(); setMsg({ ok: r.ok, text: r.message }); });
   }
@@ -101,6 +106,9 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
                     <Link href={`/clients/${c.id}`}><b>{c.name}</b></Link>
                     <span>{[c.business_type, c.city].filter(Boolean).join(" · ") || (c.ig_username ? "@" + c.ig_username : "—")}</span>
                   </div>
+                  <button className="ib" title="Sync this client" onClick={() => syncOne(c)} disabled={pending} style={busyId === c.id ? { opacity: 0.5 } : undefined}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 01-15.5 6.2M3 12A9 9 0 0118.5 5.8M18.5 2v4h-4M5.5 22v-4h4" /></svg>
+                  </button>
                   <button className="ib" title="Edit" onClick={() => edit(c)}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg>
                   </button>

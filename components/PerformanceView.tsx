@@ -5,7 +5,8 @@ import LineChart, { type Series } from "./LineChart";
 import BreakdownPanel from "./BreakdownPanel";
 import AiPanel from "./AiPanel";
 import type { Finding } from "@/lib/diagnose";
-import { saveGoal } from "@/app/(app)/performance/actions";
+import { deletePeriod, saveGoal } from "@/app/(app)/performance/actions";
+import { syncNow } from "@/app/(app)/clients/actions";
 import { TYPE_LABEL, type CampaignType } from "@/lib/results";
 import type { Progress } from "@/lib/progress";
 
@@ -49,6 +50,7 @@ export default function PerformanceView(props: {
   const [msg, setMsg] = useState<string>("");
   const [pending, start] = useTransition();
 
+  const [syncing, setSyncing] = useState(false);
   const [dayPick, setDayPick] = useState<{ day: string; n: number } | null>(null);
   const picked = sel === "all" ? null : campaigns.find((c) => c.id === sel) || null;
 
@@ -157,11 +159,21 @@ export default function PerformanceView(props: {
               {periods.map((p) => <option key={p.from} value={p.from}>{p.from} → {p.to}</option>)}
             </select>
           )}
+          {periodSel && (
+            <button className="btn" style={{ color: "var(--red)" }} disabled={syncing} onClick={async () => {
+              if (!confirm(`Delete archived period ${periodSel}?`)) return;
+              setSyncing(true);
+              const r = await deletePeriod(client.id, periodSel);
+              setSyncing(false);
+              if (r.ok) router.push(`/performance?client=${client.id}`); else alert(r.message);
+            }}>Delete period</button>
+          )}
           <select value={sel} onChange={(e) => setSel(e.target.value)}>
             <option value="all">All campaigns</option>
             {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name} · {TYPE_LABEL[c.type]}</option>)}
           </select>
           <button className="btn" disabled={!picked} onClick={() => picked && openEdit(picked)} title={picked ? "" : "Select a campaign first"}>Edit goal</button>
+          {!periodSel && <button className="btn" disabled={syncing} onClick={async () => { setSyncing(true); try { await syncNow(client.id); } finally { setSyncing(false); router.refresh(); } }}>{syncing ? "Syncing…" : "Sync"}</button>}
         </div>
       </div>
 

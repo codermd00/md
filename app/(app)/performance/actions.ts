@@ -120,3 +120,31 @@ export async function rangeBreakdown(entityId: string, from: string, to: string)
   }));
   return { ok: true, message: errs.length ? "Some tabs failed: " + errs.join(", ") : "", stats: [...stats.values()], rows };
 }
+
+/** Delete one archived period of a client (ranges, breakdowns, goals). Daily rows and the current period are untouched. */
+export async function deletePeriod(clientId: string, from: string): Promise<{ ok: boolean; message: string }> {
+  const sb = createServerSupabase();
+  const { data: u } = await sb.auth.getUser();
+  if (!u.user) return { ok: false, message: "Unauthorized" };
+  if (!DAY.test(from)) return { ok: false, message: "Invalid date" };
+  const { data: c } = await sb.from("clients").select("id,period_start").eq("id", clientId).maybeSingle();
+  if (!c) return { ok: false, message: "Client not found" };
+  if (c.period_start === from) return { ok: false, message: "This is the current period" };
+  const { data: camps } = await sb.from("campaigns").select("id").eq("client_id", clientId);
+  const { data: sets } = await sb.from("ad_sets").select("id").eq("client_id", clientId);
+  const campIds = (camps || []).map((x: any) => x.id);
+  const ids = [clientId, ...campIds, ...(sets || []).map((x: any) => x.id)];
+  for (let i = 0; i < ids.length; i += 100) {
+    const part = ids.slice(i, i + 100);
+    const a = await sb.from("insights_range").delete().eq("date_from", from).in("entity_id", part);
+    if (a.error) return { ok: false, message: a.error.message };
+    const b = await sb.from("insights_breakdown").delete().eq("date_from", from).in("entity_id", part);
+    if (b.error) return { ok: false, message: b.error.message };
+  }
+  if (campIds.length) {
+    const g = await sb.from("campaign_goals").delete().eq("period_start", from).in("campaign_id", campIds);
+    if (g.error) return { ok: false, message: g.error.message };
+  }
+  revalidatePath("/performance");
+  return { ok: true, message: "Deleted" };
+}
