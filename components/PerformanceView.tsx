@@ -49,6 +49,7 @@ export default function PerformanceView(props: {
   const [msg, setMsg] = useState<string>("");
   const [pending, start] = useTransition();
 
+  const [dayPick, setDayPick] = useState<{ day: string; n: number } | null>(null);
   const picked = sel === "all" ? null : campaigns.find((c) => c.id === sel) || null;
 
   const byType = useMemo(() => {
@@ -227,7 +228,7 @@ export default function PerformanceView(props: {
             <div className="panel">
               <h3>{picked ? `${picked.name}` : "Spend — all campaigns"}</h3>
               
-              <LineChart labels={chart.labels} series={chart.series} height={230} split={false} partialLast={chart.labels[chart.labels.length - 1] === today} />
+              <LineChart onPick={(day) => setDayPick((d) => ({ day, n: (d?.n || 0) + 1 }))} labels={chart.labels} series={chart.series} height={230} split={false} partialLast={chart.labels[chart.labels.length - 1] === today} />
               
 
               <div style={{ marginTop: 10 }}>
@@ -294,7 +295,7 @@ export default function PerformanceView(props: {
               </div>
             </div>
           </div>
-          <BreakdownPanel key={sel + (client.periodStart || "")} range={client.periodStart ? { min: client.periodStart, max: client.periodEnd && client.periodEnd < today ? client.periodEnd : today } : undefined} campaigns={campaigns} adsets={adsets} breakdown={breakdown} initial={picked ? picked.id : campaigns[0].id} />
+          <BreakdownPanel dayPick={dayPick} key={sel + (client.periodStart || "")} range={client.periodStart ? { min: client.periodStart, max: client.periodEnd && client.periodEnd < today ? client.periodEnd : today } : undefined} campaigns={campaigns} adsets={adsets} breakdown={breakdown} initial={picked ? picked.id : campaigns[0].id} />
           <AiPanel key={client.id + (client.periodStart || "")} clientId={client.id} periodStart={client.periodStart || undefined} />
         </>
       )}

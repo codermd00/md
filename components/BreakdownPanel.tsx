@@ -12,8 +12,8 @@ const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDi
 const num = (n: number) => Math.round(n).toLocaleString("en-US");
 const MIN_SPEND = 3, MIN_RESULTS = 5;
 
-export default function BreakdownPanel({ campaigns: allCampaigns, adsets: allAdsets, breakdown: baseBreakdown, initial, range }: {
-  campaigns: CampaignDTO[]; adsets: AdSetDTO[]; breakdown: BreakdownRow[]; initial: string; range?: { min: string; max: string };
+export default function BreakdownPanel({ campaigns: allCampaigns, adsets: allAdsets, breakdown: baseBreakdown, initial, range, dayPick }: {
+  campaigns: CampaignDTO[]; adsets: AdSetDTO[]; breakdown: BreakdownRow[]; initial: string; range?: { min: string; max: string }; dayPick?: { day: string; n: number } | null;
 }) {
   const [ent, setEnt] = useState(initial);
   // Temporary custom day range (live from Meta, never saved). null = full client period.
@@ -22,6 +22,13 @@ export default function BreakdownPanel({ campaigns: allCampaigns, adsets: allAds
   const [live, setLive] = useState<RangeResult | null>(null);
   const [loading, setLoading] = useState(false);
   const seq = useRef(0);
+  // Clicking a day on the chart filters this table to that day
+  const handled = useRef(dayPick?.n || 0);
+  useEffect(() => {
+    if (!dayPick || dayPick.n === handled.current || !range) return;
+    handled.current = dayPick.n;
+    if (dayPick.day >= range.min && dayPick.day <= range.max) { setFrom(dayPick.day); setTo(dayPick.day); }
+  }, [dayPick, range]);
   const custom = !!range && !!from && !!to && (from !== range.min || to !== range.max);
   useEffect(() => {
     if (!custom) { setLive(null); setLoading(false); return; }

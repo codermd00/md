@@ -13,7 +13,7 @@ const axisFmt = (v: number) => (v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 
  * رسم SVG: كل مقياس (أيسر/أيمن) يُرسم في لوحة مستقلة تبدأ من الصفر، مع أيام المحور كاملة،
  * وقيمة كل نقطة (عند اتساع المكان) وشريط معلومات يعرض قيم اليوم المحدد (لمس/تمرير).
  */
-export default function LineChart({ labels, series, height = 160, partialLast = false, split = true }: { labels: string[]; series: Series[]; height?: number; partialLast?: boolean; split?: boolean }) {
+export default function LineChart({ labels, series, height = 160, partialLast = false, split = true, onPick }: { labels: string[]; series: Series[]; height?: number; partialLast?: boolean; split?: boolean; onPick?: (label: string) => void }) {
   const box = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(340);
   const [sel, setSel] = useState<number | null>(null);
@@ -45,6 +45,13 @@ export default function LineChart({ labels, series, height = 160, partialLast = 
     setSel(Math.max(0, Math.min(n - 1, n === 1 ? 0 : Math.round(((px - L) / pw) * (n - 1)))));
   };
 
+  const click = (e: { currentTarget: SVGSVGElement; clientX: number }) => {
+    if (!onPick || n === 0) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const i = Math.max(0, Math.min(n - 1, n === 1 ? 0 : Math.round(((e.clientX - r.left - L) / pw) * (n - 1))));
+    onPick(labels[i]);
+  };
+
   if (n === 0) return <div className="empty" style={{ padding: 30 }}><b>No daily data</b></div>;
 
   const plot = (g: Series[], gi: number) => {
@@ -55,7 +62,7 @@ export default function LineChart({ labels, series, height = 160, partialLast = 
     const ticks = [0, 1 / 3, 2 / 3, 1];
     return (
       <div key={gi} style={{ marginTop: gi ? 6 : 0 }}>
-        <svg width={W} height={H} style={{ display: "block", touchAction: "pan-y", cursor: "crosshair" }} onPointerDown={pick} onPointerMove={pick}>
+        <svg width={W} height={H} style={{ display: "block", touchAction: "pan-y", cursor: "crosshair" }} onPointerDown={pick} onPointerMove={pick} onClick={click}>
           {ticks.map((t) => (
             <g key={t}>
               <line x1={L} x2={W - R} y1={y(mx * t)} y2={y(mx * t)} stroke="var(--border)" strokeDasharray={t === 0 ? undefined : "3 4"} />
