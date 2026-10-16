@@ -294,7 +294,7 @@ export default function PerformanceView(props: {
               </div>
             </div>
           </div>
-          <BreakdownPanel key={sel} campaigns={campaigns} adsets={adsets} breakdown={breakdown} initial={picked ? picked.id : campaigns[0].id} />
+          <BreakdownPanel key={sel + (client.periodStart || "")} range={client.periodStart ? { min: client.periodStart, max: client.periodEnd && client.periodEnd < today ? client.periodEnd : today } : undefined} campaigns={campaigns} adsets={adsets} breakdown={breakdown} initial={picked ? picked.id : campaigns[0].id} />
           <AiPanel key={client.id + (client.periodStart || "")} clientId={client.id} periodStart={client.periodStart || undefined} />
         </>
       )}

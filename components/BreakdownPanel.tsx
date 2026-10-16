@@ -1,5 +1,6 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { rangeBreakdown, type RangeResult } from "@/app/(app)/performance/actions";
 import type { AdSetDTO, BreakdownRow, CampaignDTO } from "./PerformanceView";
 import { TYPE_LABEL } from "@/lib/results";
 
@@ -11,10 +12,37 @@ const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDi
 const num = (n: number) => Math.round(n).toLocaleString("en-US");
 const MIN_SPEND = 3, MIN_RESULTS = 5;
 
-export default function BreakdownPanel({ campaigns, adsets, breakdown, initial }: {
-  campaigns: CampaignDTO[]; adsets: AdSetDTO[]; breakdown: BreakdownRow[]; initial: string;
+export default function BreakdownPanel({ campaigns: allCampaigns, adsets: allAdsets, breakdown: baseBreakdown, initial, range }: {
+  campaigns: CampaignDTO[]; adsets: AdSetDTO[]; breakdown: BreakdownRow[]; initial: string; range?: { min: string; max: string };
 }) {
   const [ent, setEnt] = useState(initial);
+  // Temporary custom day range (live from Meta, never saved). null = full client period.
+  const [from, setFrom] = useState(range?.min || "");
+  const [to, setTo] = useState(range?.max || "");
+  const [live, setLive] = useState<RangeResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const seq = useRef(0);
+  const custom = !!range && !!from && !!to && (from !== range.min || to !== range.max);
+  useEffect(() => {
+    if (!custom) { setLive(null); setLoading(false); return; }
+    const n = ++seq.current;
+    setLoading(true);
+    rangeBreakdown(ent, from, to).then((r) => { if (n === seq.current) { setLive(r); setLoading(false); } })
+      .catch(() => { if (n === seq.current) { setLive({ ok: false, message: "Request failed", stats: [], rows: [] }); setLoading(false); } });
+  }, [custom, ent, from, to]);
+  const useLive = custom && !!live && live.ok;
+
+  // Effective data: live numbers replace the stored ones for the selected campaign / ad sets only
+  const campaigns = useMemo(() => !useLive ? allCampaigns : allCampaigns.map((c) => {
+    const s = live!.stats.find((x) => x.id === c.id);
+    return c.id === ent ? { ...c, spend: s?.spend || 0, result: s?.results || 0, impressions: s?.impressions || 0, clicks: s?.clicks || 0, reach: s?.reach || 0, follows: s?.follows || 0 } : c;
+  }), [allCampaigns, useLive, live, ent]);
+  const adsets = useMemo(() => !useLive ? allAdsets : allAdsets.map((a) => {
+    const s = live!.stats.find((x) => x.id === a.id);
+    const inScope = a.id === ent || a.campaignId === ent;
+    return inScope ? { ...a, spend: s?.spend || 0, results: s?.results || 0, impressions: s?.impressions || 0, clicks: s?.clicks || 0, reach: s?.reach || 0, follows: s?.follows || 0 } : a;
+  }), [allAdsets, useLive, live, ent]);
+  const breakdown = useMemo<BreakdownRow[]>(() => !useLive ? baseBreakdown : live!.rows.map((r) => ({ ...r, level: "campaign" as const })), [baseBreakdown, useLive, live]);
   const [dim, setDim] = useState<(typeof DIMS)[number]["id"]>("results");
 
   const info = useMemo(() => {
@@ -59,6 +87,7 @@ export default function BreakdownPanel({ campaigns, adsets, breakdown, initial }
   // Results tab: the selected campaign (with its ad sets) or the selected ad set
   const summary = useMemo(() => {
     const leadsOf = (id: string) => {
+      if (useLive) return live!.stats.find((x) => x.id === id)?.leads || 0;
       const rs = breakdown.filter((b) => b.entityId === id && b.dimension === "platform");
       return rs.reduce((s, r) => s + r.leads, 0);
     };
@@ -79,7 +108,7 @@ export default function BreakdownPanel({ campaigns, adsets, breakdown, initial }
     const a = adsets.find((x) => x.id === ent);
     const parent = a && campaigns.find((k) => k.id === a.campaignId);
     return a && parent ? [mk(a.name, parent.type, { spend: a.spend, results: a.results, impressions: a.impressions, clicks: a.clicks, reach: a.reach, follows: a.follows }, a.id)] : [];
-  }, [breakdown, ent, campaigns, adsets]);
+  }, [breakdown, ent, campaigns, adsets, useLive, live]);
 
   const cprFmt = (v: number | null) => v === null ? "—" : "$" + (v < 0.01 ? v.toFixed(3) : v.toFixed(2)) + (info?.type === "reach" ? " /1K" : "");
   const noResults = rows.length > 0 && !rows.some((r) => r.results > 0);
@@ -93,17 +122,27 @@ export default function BreakdownPanel({ campaigns, adsets, breakdown, initial }
         </div>
         <div className="pbar">
           <select value={ent} onChange={(e) => setEnt(e.target.value)}>
-            {campaigns.map((c) => (
+            {allCampaigns.map((c) => (
               [<option key={c.id} value={c.id}>{c.name}</option>,
-               ...adsets.filter((a) => a.campaignId === c.id && a.spend > 0).map((a) => <option key={a.id} value={a.id}>&nbsp;&nbsp;↳ {a.name}</option>)]
+               ...allAdsets.filter((a) => a.campaignId === c.id && a.spend > 0).map((a) => <option key={a.id} value={a.id}>&nbsp;&nbsp;↳ {a.name}</option>)]
             ))}
           </select>
         </div>
       </div>
+      {range && (
+        <div className="pbar" style={{ marginTop: 10, flexWrap: "wrap", gap: 6 }}>
+          <input type="date" value={from} min={range.min} max={to || range.max} onChange={(e) => e.target.value && setFrom(e.target.value)} />
+          <span>→</span>
+          <input type="date" value={to} min={from || range.min} max={range.max} onChange={(e) => e.target.value && setTo(e.target.value)} />
+          {custom && <button className="btn" onClick={() => { setFrom(range.min); setTo(range.max); }}>Full period</button>}
+          {loading && <span className="sm">Loading…</span>}
+        </div>
+      )}
+      {custom && live && !live.ok && <div className="msg err" style={{ marginTop: 8 }}>{live.message}</div>}
       <div className="btabs">
         {DIMS.map((d) => <span key={d.id} className={`btab ${dim === d.id ? "on" : ""}`} onClick={() => setDim(d.id)}>{d.label}</span>)}
       </div>
-      {dim === "results" ? (
+      {custom && !useLive ? <div className="empty" style={{ padding: 24 }}><b>{loading ? "Loading…" : "No data"}</b></div> : dim === "results" ? (
         summary.length === 0 ? <div className="empty" style={{ padding: 24 }}><b>No data yet</b></div> : (
           <div style={{ overflowX: "auto" }}>
             <table className="bt" key="results">

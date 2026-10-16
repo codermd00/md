@@ -6,7 +6,7 @@ export const DIMENSIONS = ["region", "age", "gender", "platform", "placement"] a
 export type Dimension = (typeof DIMENSIONS)[number];
 
 // كل بُعد: breakdowns المطلوبة في Meta ودالة بناء المفتاح
-const SPEC: Record<Dimension, { breakdowns: string; key: (r: any) => string | null }> = {
+export const SPEC: Record<Dimension, { breakdowns: string; key: (r: any) => string | null }> = {
   region: { breakdowns: "region", key: (r) => r.region || null },
   age: { breakdowns: "age", key: (r) => r.age || null },
   gender: { breakdowns: "gender", key: (r) => r.gender || null },
