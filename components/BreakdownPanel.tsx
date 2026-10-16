@@ -130,10 +130,10 @@ export default function BreakdownPanel({ campaigns: allCampaigns, adsets: allAds
         </div>
       </div>
       {range && (
-        <div className="pbar" style={{ marginTop: 10, flexWrap: "wrap", gap: 6 }}>
-          <input type="date" value={from} min={range.min} max={to || range.max} onChange={(e) => e.target.value && setFrom(e.target.value)} />
+        <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <input type="date" style={{ width: 138, flex: "none", padding: "6px 8px", fontSize: 13 }} value={from} min={range.min} max={to || range.max} onChange={(e) => e.target.value && setFrom(e.target.value)} />
           <span>→</span>
-          <input type="date" value={to} min={from || range.min} max={range.max} onChange={(e) => e.target.value && setTo(e.target.value)} />
+          <input type="date" style={{ width: 138, flex: "none", padding: "6px 8px", fontSize: 13 }} value={to} min={from || range.min} max={range.max} onChange={(e) => e.target.value && setTo(e.target.value)} />
           {custom && <button className="btn" onClick={() => { setFrom(range.min); setTo(range.max); }}>Full period</button>}
           {loading && <span className="sm">Loading…</span>}
         </div>
