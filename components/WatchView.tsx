@@ -35,10 +35,10 @@ export default function WatchView({ clients, rows }: { clients: { id: string; na
 
   const open = rows.filter((r) => r.status === "open");
   const closed = rows.filter((r) => r.status === "closed");
-  const shown = targets.filter((t) => !q || t.name.toLowerCase().includes(q.toLowerCase()));
+  const shown = targets.filter((t) => !q || (t.name + " " + t.camp + " " + t.adset).toLowerCase().includes(q.toLowerCase()));
 
   const add = (t: Target) => start(async () => {
-    const r = await addWatch(lvl === "ad" ? { level: "ad", clientId: cid, metaId: t.key, name: t.name, note } : { level: lvl, dbId: t.key, note });
+    const r = await addWatch({ level: lvl, clientId: cid, metaId: t.key, name: t.name, note });
     setMsg(r.message);
     if (r.ok) { setAdding(false); setNote(""); setQ(""); router.refresh(); }
   });
@@ -55,9 +55,9 @@ export default function WatchView({ clients, rows }: { clients: { id: string; na
       <td>{Math.round(r.results).toLocaleString("en-US")}</td>
       <td><span style={{ color: FLAG_COLOR[r.flag] }}>{r.error ? "Meta error" : FLAG_TEXT[r.flag]}</span></td>
       <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-        {r.status === "open"
-          ? <a style={{ color: "var(--blue2)", fontWeight: 600, cursor: "pointer" }} onClick={() => { setClosing(r); setCloseNote(""); }}>Close</a>
-          : <><span className="sub" style={{ margin: 0 }}>{r.closedOn}</span> <a style={{ color: "var(--red)", cursor: "pointer", marginLeft: 8 }} onClick={() => start(async () => { await deleteWatch(r.id); router.refresh(); })}>Delete</a></>}
+        {r.status === "open" && <a style={{ color: "var(--blue2)", fontWeight: 600, cursor: "pointer" }} onClick={() => { setClosing(r); setCloseNote(""); }}>Close</a>}
+        {r.status === "closed" && <span className="sub" style={{ margin: 0 }}>{r.closedOn}</span>}
+        <a style={{ color: "var(--red)", cursor: "pointer", marginLeft: 12 }} onClick={() => { if (confirm(`Delete "${r.name}"?`)) start(async () => { await deleteWatch(r.id); router.refresh(); }); }}>Delete</a>
       </td>
     </tr>
   );
@@ -100,11 +100,20 @@ export default function WatchView({ clients, rows }: { clients: { id: string; na
             <input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} style={{ width: "100%", marginBottom: 8 }} />
             <input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: "100%", marginBottom: 6 }} />
             <div style={{ maxHeight: 260, overflowY: "auto" }}>
-              {loading ? <div className="sub">Loading…</div> : shown.length === 0 ? <div className="sub">{msg || "Nothing found"}</div> : shown.map((t) => (
-                <div className="dsum" key={t.key} onClick={() => !pending && add(t)}>
-                  <span><b>{t.name}</b></span><span className="sub" style={{ margin: 0 }}>{t.sub}</span>
-                </div>
-              ))}
+              {loading ? <div className="sub">Loading…</div> : shown.length === 0 ? <div className="sub">{msg || "Nothing found"}</div> : shown.map((t, i) => {
+                const p = shown[i - 1];
+                const newCamp = !!t.camp && (!p || p.camp !== t.camp);
+                const newSet = !!t.adset && (!p || p.camp !== t.camp || p.adset !== t.adset);
+                return (
+                  <div key={t.key}>
+                    {newCamp && <div className="sub" style={{ margin: "10px 0 2px", fontWeight: 700, color: "var(--t2)" }}>{t.camp}</div>}
+                    {newSet && <div className="sub" style={{ margin: "4px 0 0 10px" }}>↳ {t.adset}</div>}
+                    <div className="dsum" style={{ paddingLeft: t.adset ? 24 : t.camp ? 12 : 4, opacity: t.sub === "Active" ? 1 : 0.75 }} onClick={() => !pending && add(t)}>
+                      <span><b>{t.name}</b></span><span className="sub" style={{ margin: 0 }}>{t.sub}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             {msg && shown.length > 0 && <div className="sub" style={{ marginTop: 8 }}>{msg}</div>}
             <div className="acts" style={{ marginTop: 14 }}><button className="btn" onClick={() => setAdding(false)}>Cancel</button></div>

@@ -4,7 +4,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { graph, graphAll } from "@/lib/meta";
 import { addDays, todayStr } from "@/lib/dates";
 import { liveTotals, type WatchLevel } from "@/lib/watch";
-import type { CampaignType } from "@/lib/results";
+import { typeFromGoal, type CampaignType } from "@/lib/results";
 
 type Res = { ok: boolean; message: string };
 const refresh = () => { revalidatePath("/overview"); revalidatePath("/watch"); };
@@ -17,31 +17,42 @@ export async function addWatch(input: {
   if (!u.user) return { ok: false, message: "Unauthorized" };
 
   let clientId = input.clientId || "", metaId = input.metaId || "", name = input.name || "", type: CampaignType = "other";
-  if (input.level === "campaign" && input.dbId) {
+  if (input.dbId && input.level === "campaign") {
     const { data } = await sb.from("campaigns").select("client_id,meta_id,name,type").eq("id", input.dbId).maybeSingle();
     if (!data) return { ok: false, message: "Campaign not found" };
     clientId = data.client_id; metaId = data.meta_id; name = data.name; type = data.type;
-  } else if (input.level === "adset" && input.dbId) {
+  } else if (input.dbId && input.level === "adset") {
     const { data } = await sb.from("ad_sets").select("client_id,meta_id,name,campaign_id").eq("id", input.dbId).maybeSingle();
     if (!data) return { ok: false, message: "Ad set not found" };
     const { data: parent } = await sb.from("campaigns").select("type").eq("id", data.campaign_id).maybeSingle();
     clientId = data.client_id; metaId = data.meta_id; name = data.name; type = (parent?.type as CampaignType) || "other";
-  } else if (input.level === "ad") {
+  } else {
     if (input.postId) {
       const { data } = await sb.from("posts").select("client_id,ad_meta_id,shortcode").eq("id", input.postId).maybeSingle();
       if (!data?.ad_meta_id) return { ok: false, message: "This post has no ad yet" };
-      clientId = data.client_id; metaId = data.ad_meta_id; name = data.shortcode || "Ad";
+      clientId = data.client_id; metaId = data.ad_meta_id; name = data.shortcode || "";
     }
-    if (!clientId || !metaId) return { ok: false, message: "Missing ad" };
+    metaId = metaId.trim();
+    if (!clientId || !/^\d+$/.test(metaId)) return { ok: false, message: "Missing or invalid ID" };
+    // live from Meta, so brand-new items work before any sync
     try {
-      const ad = await graph<any>(metaId, { fields: "name,campaign_id" });
-      if (!name) name = ad.name || "Ad";
-      if (ad.campaign_id) {
-        const { data: camp } = await sb.from("campaigns").select("type").eq("meta_id", String(ad.campaign_id)).maybeSingle();
+      const f = input.level === "ad" ? "name,campaign_id,adset{optimization_goal,destination_type}"
+        : input.level === "adset" ? "name,campaign_id,optimization_goal,destination_type" : "name";
+      const info = await graph<any>(metaId, { fields: f });
+      if (!name) name = info.name || "";
+      const campMeta = input.level === "campaign" ? metaId : String(info.campaign_id || "");
+      if (campMeta) {
+        const { data: camp } = await sb.from("campaigns").select("type").eq("meta_id", campMeta).maybeSingle();
         if (camp?.type) type = camp.type;
       }
-    } catch { /* type stays "other" */ }
-  } else return { ok: false, message: "Missing item" };
+      if (type === "other") {
+        let g = input.level === "ad" ? info.adset : info;
+        if (input.level === "campaign") g = (await graph<any>(`${metaId}/adsets`, { fields: "optimization_goal,destination_type", limit: 1 })).data?.[0];
+        if (g) type = /INSTAGRAM_PROFILE/i.test(g.destination_type || "") ? "visit" : typeFromGoal(g.optimization_goal);
+      }
+    } catch (e: any) { return { ok: false, message: String(e?.message || "Meta request failed").slice(0, 120) }; }
+    if (!name) name = "Item " + metaId;
+  }
 
   const { data: dup } = await sb.from("watch_items").select("id").eq("meta_id", metaId).eq("status", "open").maybeSingle();
   if (dup) return { ok: false, message: "Already watching this" };
@@ -89,28 +100,28 @@ export async function deleteWatch(id: string): Promise<Res> {
   return { ok: true, message: "Deleted" };
 }
 
-export type Target = { key: string; name: string; sub: string };
+export type Target = { key: string; name: string; sub: string; camp: string; adset: string };
 
-/** Things that can be added: campaigns / ad sets from the database, ads live from Meta. */
+const LIVE = ["ACTIVE", "IN_PROCESS", "WITH_ISSUES"];
+const LIVE_ADS = ["ACTIVE", "IN_PROCESS", "PENDING_REVIEW", "PREAPPROVED", "WITH_ISSUES", "DISAPPROVED"];
+const label = (s: string | null) =>
+  s === "ACTIVE" ? "Active" : s === "WITH_ISSUES" || s === "DISAPPROVED" ? "Issues" : "In review";
+
+/** Everything that is running or about to run, live from Meta (so brand-new items show up before any sync). */
 export async function listTargets(clientId: string, level: WatchLevel): Promise<{ ok: boolean; message: string; items: Target[] }> {
   const sb = createServerSupabase();
   const { data: u } = await sb.auth.getUser();
   if (!u.user) return { ok: false, message: "Unauthorized", items: [] };
-  const st = (s: string | null) => (s && s !== "ACTIVE" ? "Paused" : "Active");
-  if (level === "campaign") {
-    const { data } = await sb.from("campaigns").select("id,name,effective_status").eq("client_id", clientId).order("last_spend", { ascending: false }).limit(200);
-    return { ok: true, message: "", items: ((data || []) as any[]).map((x) => ({ key: x.id, name: x.name, sub: st(x.effective_status) })) };
-  }
-  if (level === "adset") {
-    const { data } = await sb.from("ad_sets").select("id,name,effective_status").eq("client_id", clientId).order("created_at", { ascending: false }).limit(300);
-    return { ok: true, message: "", items: ((data || []) as any[]).map((x) => ({ key: x.id, name: x.name, sub: st(x.effective_status) })) };
-  }
   const { data: client } = await sb.from("clients").select("ad_account_id").eq("id", clientId).maybeSingle();
   if (!client) return { ok: false, message: "Client not found", items: [] };
+  const edge = level === "campaign" ? "campaigns" : level === "adset" ? "adsets" : "ads";
+  const fields = level === "campaign" ? "name,effective_status" : level === "adset" ? "name,effective_status,campaign{name}" : "name,effective_status,adset{name},campaign{name}";
   try {
-    const ads = await graphAll<any>(`act_${client.ad_account_id}/ads`, {
-      fields: "name,effective_status,adset{name}", effective_status: JSON.stringify(["ACTIVE", "PAUSED"]), limit: 100,
-    }, 3);
-    return { ok: true, message: "", items: ads.map((a) => ({ key: String(a.id), name: a.name || "Ad", sub: `${st(a.effective_status)}${a.adset?.name ? " · " + a.adset.name : ""}` })) };
+    const rows = await graphAll<any>(`act_${client.ad_account_id}/${edge}`, {
+      fields, effective_status: JSON.stringify(level === "ad" ? LIVE_ADS : LIVE), limit: 100,
+    }, 4);
+    const items: Target[] = rows.map((a) => ({ key: String(a.id), name: a.name || "—", sub: label(a.effective_status), camp: a.campaign?.name || "", adset: a.adset?.name || "" }));
+    items.sort((a, b) => a.camp.localeCompare(b.camp) || a.adset.localeCompare(b.adset) || a.name.localeCompare(b.name));
+    return { ok: true, message: "", items };
   } catch (e: any) { return { ok: false, message: String(e?.message || "Meta request failed").slice(0, 120), items: [] }; }
 }
