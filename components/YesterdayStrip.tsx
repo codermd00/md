@@ -7,7 +7,6 @@ export type YClient = { id: string; name: string; spend: number; flag: "stop" | 
 
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const ICON = { stop: "⚠", worse: "▲", better: "▼", same: "●" } as const;
-const NOTE = { stop: "Stopped", worse: "Cost up", better: "Cost down", same: "Steady" } as const;
 const COLOR = { stop: "var(--red)", worse: "var(--red)", better: "var(--green)", same: "var(--t3)" } as const;
 const UNIT: Record<string, string> = { Messages: "messages", Reach: "reached", Visit: "visits", Engagement: "engagements", Other: "results" };
 
@@ -15,25 +14,14 @@ export default function YesterdayStrip({ label, clients }: { label: string; clie
   const [open, setOpen] = useState<YClient | null>(null);
   if (clients.length === 0) return null;
   return (
-    <div className="panel grow">
+    <div className="panel" style={{ marginBottom: 14 }}>
       <h3>Yesterday <span className="sub" style={{ marginLeft: 6 }}>{label}</span></h3>
-      {/* Desktop: list rows */}
-      <div className="ylist">
+      <div className="ystream">
         {clients.map((c) => (
-          <button key={c.id} className="yrow" onClick={() => setOpen(c)}>
-            <span className="yi" style={{ color: COLOR[c.flag] }}>{ICON[c.flag]}</span>
-            <span className="yn"><b>{c.name}</b><small>{c.campaigns.length} campaign{c.campaigns.length === 1 ? "" : "s"}</small></span>
-            <span className="yr"><b>{c.flag === "stop" && c.spend === 0 ? "No spend" : money(c.spend)}</b><small style={{ color: COLOR[c.flag] }}>{NOTE[c.flag]}</small></span>
-          </button>
-        ))}
-      </div>
-      {/* Mobile: one fixed-height swipe row */}
-      <div className="ystrip">
-        {clients.map((c) => (
-          <button key={c.id} className="ycard" onClick={() => setOpen(c)}>
-            <div className="yt"><b>{c.name}</b><span style={{ color: COLOR[c.flag] }}>{ICON[c.flag]}</span></div>
-            <div className="yv">{c.flag === "stop" && c.spend === 0 ? "No spend" : money(c.spend)}</div>
-            <div className="ys">{c.campaigns.length} campaign{c.campaigns.length === 1 ? "" : "s"}</div>
+          <button key={c.id} className={`ychip ${c.flag}`} onClick={() => setOpen(c)}>
+            <span style={{ color: COLOR[c.flag] }}>{ICON[c.flag]}</span>
+            <b>{c.name}</b>
+            <span className="yamt">{c.flag === "stop" && c.spend === 0 ? "No spend" : money(c.spend)}</span>
           </button>
         ))}
       </div>

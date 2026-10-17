@@ -180,60 +180,63 @@ export default async function OverviewPage() {
             {tile("Goal At Risk", risky.length, "bad")}
           </div>
 
-          <div className="ov2">
+          <YesterdayStrip label={yLabel} clients={yClients} />
+
+          <div className="ov3c">
+            <div className="panel">
+              <h3>Needs Attention</h3>
+              {items.length === 0 ? (
+                <div className="fnd ok"><b>All good</b></div>
+              ) : (
+                <div className="diag">
+                  {items.slice(0, 12).map((it, i) => (
+                    <div className={`fnd ${it.level}`} key={i}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                        {link(it)}<span className={`chip sm ${it.level === "bad" ? "bad" : "warn"}`}>{it.level === "bad" ? "critical" : "warning"}</span>
+                      </div>
+                      <div className="c" dir="auto">{it.text}</div>
+                    </div>
+                  ))}
+                  {items.length > 12 && <div className="sub">+{items.length - 12} more</div>}
+                </div>
+              )}
+            </div>
+
             <div className="col">
-              <YesterdayStrip label={yLabel} clients={yClients} />
+              <div className="panel">
+                <h3>Orders Today</h3>
+                {orderRows.length === 0 ? <div className="sub" style={{ marginBottom: 0 }}>—</div> : orderRows.map(([id, n]) => (
+                  <div key={id} style={{ marginTop: 10 }}>
+                    <div className="dsum" style={{ cursor: "default", border: 0, padding: 0 }}><span>{nameOf.get(id) || ""}</span><b>{n}</b></div>
+                    <div className="bar"><i style={{ width: `${(n / orderRows[0][1]) * 100}%` }} /></div>
+                  </div>
+                ))}
+              </div>
+              <div className="panel">
+                <h3>Tasks</h3>
+                {(tasks || []).length === 0 ? <div className="sub" style={{ marginBottom: 0 }}>—</div> : (tasks as any[]).slice(0, 5).map((t) => (
+                  <div className="dsum" key={t.id} style={{ cursor: "default" }}>
+                    <span>{t.title}</span><span className={`chip sm ${t.priority === "high" ? "bad" : "mute"}`}>{t.due_date || t.priority}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="col">
               <div className="panel">
                 <h3>Ending Soon</h3>
                 {endingSoon.length === 0 ? <div className="sub" style={{ marginBottom: 0 }}>—</div> : endingSoon.map((it, i) => (
-                  <div className="dsum" key={i}><span>{link(it)}</span><span className="c">{it.text}</span></div>
+                  <div className="dsum" key={i}><span>{link(it)}</span><span className={`chip sm ${it.text.includes("today") ? "bad" : "warn"}`}>{it.text.replace("Period ends ", "")}</span></div>
                 ))}
               </div>
-
               <div className="panel">
-            <h3>Orders Today</h3>
-            {orderRows.length === 0 ? <div className="sub">—</div> : orderRows.map(([id, n]) => (
-              <div className="dsum" key={id} style={{ cursor: "default" }}>
-                <span>{nameOf.get(id) || ""}</span><b>{n}</b>
+                <h3>Quick Note</h3>
+                <form action={addQuickNote}>
+                  <textarea name="body" rows={3} placeholder="Write a note…" style={{ width: "100%" }} />
+                  <button className="btn pri" style={{ marginTop: 6 }} type="submit">Save</button>
+                </form>
+                {(notes || []).map((n: any) => <div className="dsum" key={n.id} style={{ cursor: "default" }}><span>{n.body.slice(0, 90)}</span></div>)}
               </div>
-            ))}
-          </div>
-
-              <div className="panel grow">
-                <h3>Needs Attention</h3>
-                {items.length === 0 ? (
-                  <div className="fnd ok"><b>All good</b></div>
-                ) : (
-                  <div className="diag">
-                    {items.slice(0, 12).map((it, i) => (
-                      <div className={`fnd ${it.level}`} key={i}>{link(it)}<div className="c" dir="auto">{it.text}</div></div>
-                    ))}
-                    {items.length > 12 && <div className="sub">+{items.length - 12} more</div>}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="ov3">
-            <div className="panel">
-              <h3>Tasks</h3>
-              {(tasks || []).length === 0 ? <div className="sub">—</div> : (tasks as any[]).slice(0, 5).map((t) => (
-                <div className="dsum" key={t.id} style={{ cursor: "default" }}>
-                  <span>{t.title}</span><span className={`chip sm ${t.priority === "high" ? "bad" : "mute"}`}>{t.due_date || t.priority}</span>
-                </div>
-              ))}
-            </div>
-            <div className="panel">
-              <h3>Quick Note</h3>
-              <form action={addQuickNote}>
-                <textarea name="body" rows={3} placeholder="Write a note…" style={{ width: "100%" }} />
-                <button className="btn pri" style={{ marginTop: 6 }} type="submit">Save</button>
-              </form>
-              {(notes || []).map((n: any) => <div className="dsum" key={n.id} style={{ cursor: "default" }}><span>{n.body.slice(0, 90)}</span></div>)}
             </div>
           </div>
         </>
