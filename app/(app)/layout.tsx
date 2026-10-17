@@ -3,7 +3,7 @@ import Sidebar from "@/components/Sidebar";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  // red dot on Overview when a watched item went bad (flag is refreshed whenever Overview / Watch loads)
+  // red dot on Watch when a watched item went bad (flag is refreshed whenever Overview / Watch loads)
   let watchAlert = false;
   try {
     const { count } = await createServerSupabase().from("watch_items").select("id", { count: "exact", head: true })
