@@ -16,7 +16,7 @@ export async function buildContext(sb: SupabaseClient, clientId: string, periodS
   let from: string | null = periodStart || c.period_start;
   let to: string | null = from === c.period_start ? c.period_end : null;
   if (from && !to) {
-    const { data: pr } = await sb.from("insights_range").select("date_to").eq("level", "account").eq("entity_id", c.id).eq("date_from", from).limit(1);
+    const { data: pr } = await sb.from("insights_range").select("date_to").eq("level", "account").eq("entity_id", c.id).eq("date_from", from).order("synced_at", { ascending: false }).limit(1);
     to = (pr as any)?.[0]?.date_to || c.period_end;
   }
   const prev = from && to ? previousPeriod(from, to) : null;
@@ -34,7 +34,7 @@ export async function buildContext(sb: SupabaseClient, clientId: string, periodS
   ]);
   const setIds = (sets || []).map((s: any) => s.id);
   const [{ data: setRanges }, { data: bd }] = await Promise.all([
-    setIds.length ? sb.from("insights_range").select("entity_id,spend,results,impressions,clicks,reach").eq("level", "adset").eq("date_from", from).in("entity_id", setIds) : Promise.resolve({ data: [] as any[] }),
+    setIds.length ? sb.from("insights_range").select("entity_id,spend,results,impressions,clicks,reach").eq("level", "adset").eq("date_from", from).in("entity_id", setIds).order("synced_at", { ascending: false }) : Promise.resolve({ data: [] as any[] }),
     sb.from("insights_breakdown").select("entity_id,dimension,key,spend,results,date_to").eq("date_from", from).eq("level", "campaign").in("entity_id", ids).limit(1000),
   ]);
 

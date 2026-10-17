@@ -53,7 +53,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
   const [ranges, adsetRanges, breakdown, goals, daily] = await Promise.all([
     ids.length ? sb.from("insights_range").select("*").eq("level", "campaign").in("entity_id", ids).order("synced_at", { ascending: false }).then((r: any) => r.data || []) : [],
     adsetIds.length && vStart
-      ? sb.from("insights_range").select("*").eq("level", "adset").eq("date_from", vStart).in("entity_id", adsetIds).then((r: any) => r.data || [])
+      ? sb.from("insights_range").select("*").eq("level", "adset").eq("date_from", vStart).in("entity_id", adsetIds).order("synced_at", { ascending: false }).then((r: any) => r.data || [])
       : [],
     ids.length && vStart
       ? fetchAll<any>((a, b) => sb.from("insights_breakdown").select("level,entity_id,date_to,dimension,key,spend,impressions,clicks,reach,results,leads,follows")

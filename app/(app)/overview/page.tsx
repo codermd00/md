@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { daysLeft, todayStr } from "@/lib/dates";
+import { addDays, daysLeft, todayStr } from "@/lib/dates";
 import { computeProgress } from "@/lib/progress";
 import { fetchAll } from "@/lib/fetchall";
-import { TYPE_LABEL } from "@/lib/results";
+import { TYPE_LABEL, cprValue } from "@/lib/results";
+import YesterdayStrip, { type YClient } from "@/components/YesterdayStrip";
 import { addQuickNote } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -46,13 +47,16 @@ export default async function OverviewPage() {
   ]);
   const threshold = Number((setRows || [])[0]?.value) || 95;
   const cl: any[] = clients || [];
+  const yDay = addDays(today, -1);
+  const { data: yRows } = await sb.from("insights_daily").select("entity_id,client_id,day,spend,results").eq("level", "campaign")
+    .gte("day", addDays(today, -4)).lte("day", yDay);
   const cs: any[] = camps || [];
   const nameOf = new Map(cl.map((c) => [c.id, c.name]));
 
   const campIds = cs.map((k) => k.id);
   const [ranges, goals] = campIds.length
     ? await Promise.all([
-        fetchAll<any>((a, b) => sb.from("insights_range").select("entity_id,date_from,spend,results").eq("level", "campaign").in("entity_id", campIds).range(a, b) as any),
+        fetchAll<any>((a, b) => sb.from("insights_range").select("entity_id,date_from,spend,results").eq("level", "campaign").in("entity_id", campIds).order("synced_at", { ascending: false }).order("id", { ascending: false }).range(a, b) as any),
         fetchAll<any>((a, b) => sb.from("campaign_goals").select("campaign_id,period_start,target,budget").in("campaign_id", campIds).range(a, b) as any),
       ])
     : [[], []];
@@ -73,6 +77,39 @@ export default async function OverviewPage() {
       if (p.status === "late" || p.status === "missed") risky.push({ client: c, camp: k, p });
     }
   }
+
+  // ---- Yesterday strip: yesterday vs the 3 days before it, per campaign ----
+  const yClients: YClient[] = [];
+  for (const c of cl) {
+    const camps2: YClient["campaigns"] = [];
+    let spendTotal = 0, worse = false, better = false, stop = false;
+    for (const k of cs.filter((x) => x.client_id === c.id)) {
+      const mine = ((yRows || []) as any[]).filter((r) => r.entity_id === k.id);
+      const y = mine.filter((r) => r.day === yDay), p3 = mine.filter((r) => r.day !== yDay);
+      const sum = (a: any[], f: string) => a.reduce((t, r) => t + Number(r[f] || 0), 0);
+      const ys = sum(y, "spend"), yr = sum(y, "results"), ps = sum(p3, "spend"), pr = sum(p3, "results");
+      if (ys <= 0 && ps <= 0) continue;
+      const cost = cprValue(k.type, ys, yr), prev = cprValue(k.type, ps, pr);
+      const delta = cost !== null && prev ? (cost / prev - 1) * 100 : null;
+      const stopped = ys <= 0 && ps > 0;
+      if (stopped) stop = true; else if (delta !== null && delta > 10) worse = true; else if (delta !== null && delta < -10) better = true;
+      spendTotal += ys;
+      camps2.push({
+        name: k.name, type: TYPE_LABEL[k.type as keyof typeof TYPE_LABEL], spend: ys, results: yr, stopped, delta,
+        cost: cost === null ? "—" : "$" + (cost < 0.01 ? cost.toFixed(3) : cost.toFixed(2)) + (k.type === "reach" ? " /1K" : " per result"),
+      });
+    }
+    const running = !c.period_start || !c.period_end || (c.period_start <= yDay && c.period_end >= yDay);
+    if (camps2.length === 0) {
+      if (running && c.account_status === "active") yClients.push({ id: c.id, name: c.name, spend: 0, flag: "stop", campaigns: [] });
+      continue;
+    }
+    camps2.sort((a, b) => b.spend - a.spend);
+    yClients.push({ id: c.id, name: c.name, spend: spendTotal, flag: stop ? "stop" : worse ? "worse" : better ? "better" : "same", campaigns: camps2 });
+  }
+  const yRank = { stop: 0, worse: 1, same: 2, better: 3 } as const;
+  yClients.sort((a, b) => yRank[a.flag] - yRank[b.flag] || b.spend - a.spend);
+  const yLabel = new Date(yDay + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
   // ---- العدّادات ----
   const active = cl.filter((c) => c.account_status === "active").length;
@@ -124,6 +161,7 @@ export default async function OverviewPage() {
         <div className="panel empty"><b>No clients yet</b><Link href="/clients" style={{ color: "var(--blue2)" }}>Add your first client</Link></div>
       ) : (
         <>
+          <YesterdayStrip label={yLabel} clients={yClients} />
           <div className="tiles">
             {tile("Total Clients", cl.length)}
             {tile("Active Accounts", active)}
