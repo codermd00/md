@@ -5,6 +5,7 @@ import { computeProgress } from "@/lib/progress";
 import { fetchAll } from "@/lib/fetchall";
 import { TYPE_LABEL, cprValue } from "@/lib/results";
 import YesterdayStrip, { type YClient } from "@/components/YesterdayStrip";
+import DataHealth from "@/components/DataHealth";
 import { addQuickNote } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -143,6 +144,13 @@ export default async function OverviewPage() {
   }
   items.sort((a, b) => (a.level === b.level ? 0 : a.level === "bad" ? -1 : 1));
 
+  // ---- Data health (shown in a popup) ----
+  const healthRows = cl.map((c) => {
+    const stale = !c.synced_at || Date.now() - new Date(c.synced_at).getTime() > 60 * 60 * 1000;
+    return { name: c.name, ago: ago(c.synced_at), stale, error: failed.has(c.id) && !okRecent.has(c.id) ? (failed.get(c.id) || "Sync failed").slice(0, 90) : "" };
+  });
+  const healthStatus: "ok" | "warn" | "bad" = healthRows.some((r) => r.error) ? "bad" : healthRows.some((r) => r.stale) ? "warn" : "ok";
+
   const tile = (l: string, v: number | string, tone?: "bad" | "ok") => (
     <div className="kpi" key={l}>
       <div className="l">{l}</div>
@@ -155,13 +163,13 @@ export default async function OverviewPage() {
     <>
       <div className="topbar" style={{ marginBottom: 14 }}>
         <div><div className="h1" style={{ fontSize: 20 }}>Overview</div><div className="sub">{today} </div></div>
+        <DataHealth status={healthStatus} rows={healthRows} />
       </div>
 
       {cl.length === 0 ? (
         <div className="panel empty"><b>No clients yet</b><Link href="/clients" style={{ color: "var(--blue2)" }}>Add your first client</Link></div>
       ) : (
         <>
-          <YesterdayStrip label={yLabel} clients={yClients} />
           <div className="tiles">
             {tile("Total Clients", cl.length)}
             {tile("Active Accounts", active)}
@@ -174,19 +182,7 @@ export default async function OverviewPage() {
 
           <div className="ov2">
             <div className="col">
-              <div className="panel grow">
-                <h3>Needs Attention</h3>
-                {items.length === 0 ? (
-                  <div className="fnd ok"><b>All good</b></div>
-                ) : (
-                  <div className="diag">
-                    {items.slice(0, 12).map((it, i) => (
-                      <div className={`fnd ${it.level}`} key={i}>{link(it)}<div className="c" dir="auto">{it.text}</div></div>
-                    ))}
-                    {items.length > 12 && <div className="sub">+{items.length - 12} more</div>}
-                  </div>
-                )}
-              </div>
+              <YesterdayStrip label={yLabel} clients={yClients} />
             </div>
 
             <div className="col">
@@ -207,16 +203,17 @@ export default async function OverviewPage() {
           </div>
 
               <div className="panel grow">
-                <h3>Data Health</h3>
-                {cl.map((c) => {
-                  const stale = !c.synced_at || Date.now() - new Date(c.synced_at).getTime() > 60 * 60 * 1000;
-                  return (
-                    <div className="dsum" key={c.id} style={{ cursor: "default" }}>
-                      <span>{c.name}</span>
-                      <span className={`chip sm ${stale ? "warn" : "ok"}`}>{ago(c.synced_at)}</span>
-                    </div>
-                  );
-                })}
+                <h3>Needs Attention</h3>
+                {items.length === 0 ? (
+                  <div className="fnd ok"><b>All good</b></div>
+                ) : (
+                  <div className="diag">
+                    {items.slice(0, 12).map((it, i) => (
+                      <div className={`fnd ${it.level}`} key={i}>{link(it)}<div className="c" dir="auto">{it.text}</div></div>
+                    ))}
+                    {items.length > 12 && <div className="sub">+{items.length - 12} more</div>}
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -14,7 +14,7 @@ export default function YesterdayStrip({ label, clients }: { label: string; clie
   const [open, setOpen] = useState<YClient | null>(null);
   if (clients.length === 0) return null;
   return (
-    <div className="panel" style={{ marginBottom: 14 }}>
+    <div className="panel grow">
       <h3>Yesterday <span className="sub" style={{ marginLeft: 6 }}>{label}</span></h3>
       <div className="ystrip">
         {clients.map((c) => (
