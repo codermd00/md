@@ -17,6 +17,7 @@ export async function addWatch(input: {
   if (!u.user) return { ok: false, message: "Unauthorized" };
 
   let clientId = input.clientId || "", metaId = input.metaId || "", name = input.name || "", type: CampaignType = "other";
+  let parentCamp = "", parentAdset = "";
   if (input.dbId && input.level === "campaign") {
     const { data } = await sb.from("campaigns").select("client_id,meta_id,name,type").eq("id", input.dbId).maybeSingle();
     if (!data) return { ok: false, message: "Campaign not found" };
@@ -25,7 +26,8 @@ export async function addWatch(input: {
     const { data } = await sb.from("ad_sets").select("client_id,meta_id,name,campaign_id").eq("id", input.dbId).maybeSingle();
     if (!data) return { ok: false, message: "Ad set not found" };
     const { data: parent } = await sb.from("campaigns").select("type").eq("id", data.campaign_id).maybeSingle();
-    clientId = data.client_id; metaId = data.meta_id; name = data.name; type = (parent?.type as CampaignType) || "other";
+    const { data: pc } = await sb.from("campaigns").select("name").eq("id", data.campaign_id).maybeSingle();
+    clientId = data.client_id; metaId = data.meta_id; name = data.name; type = (parent?.type as CampaignType) || "other"; parentCamp = pc?.name || "";
   } else {
     if (input.postId) {
       const { data } = await sb.from("posts").select("client_id,ad_meta_id,shortcode").eq("id", input.postId).maybeSingle();
@@ -36,10 +38,11 @@ export async function addWatch(input: {
     if (!clientId || !/^\d+$/.test(metaId)) return { ok: false, message: "Missing or invalid ID" };
     // live from Meta, so brand-new items work before any sync
     try {
-      const f = input.level === "ad" ? "name,campaign_id,adset{optimization_goal,destination_type}"
-        : input.level === "adset" ? "name,campaign_id,optimization_goal,destination_type" : "name";
+      const f = input.level === "ad" ? "name,campaign_id,campaign{name},adset{name,optimization_goal,destination_type}"
+        : input.level === "adset" ? "name,campaign_id,campaign{name},optimization_goal,destination_type" : "name";
       const info = await graph<any>(metaId, { fields: f });
       if (!name) name = info.name || "";
+      parentCamp = info.campaign?.name || ""; parentAdset = input.level === "ad" ? info.adset?.name || "" : "";
       const campMeta = input.level === "campaign" ? metaId : String(info.campaign_id || "");
       if (campMeta) {
         const { data: camp } = await sb.from("campaigns").select("type").eq("meta_id", campMeta).maybeSingle();
@@ -63,10 +66,12 @@ export async function addWatch(input: {
   let bs = 0, br = 0;
   try { const b = await liveTotals(client.ad_account_id, input.level, metaId, addDays(today, -3), addDays(today, -1), type); bs = b.spend; br = b.results; } catch { /* no snapshot */ }
 
-  const { error } = await sb.from("watch_items").insert({
+  const row = {
     client_id: clientId, level: input.level, meta_id: metaId, name, type, note: (input.note || "").trim() || null,
     started_on: today, before_spend: bs, before_results: br,
-  });
+  };
+  let { error } = await sb.from("watch_items").insert({ ...row, parent_camp: parentCamp, parent_adset: parentAdset });
+  if (error && /parent_/.test(error.message)) ({ error } = await sb.from("watch_items").insert(row)); // SQL 016 not applied yet
   if (error) return { ok: false, message: error.message };
   refresh();
   return { ok: true, message: "Watching" };

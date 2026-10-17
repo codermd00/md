@@ -1,5 +1,5 @@
 // Watch: live numbers for the items the user chose to monitor (server only)
-import { graphAll } from "./meta";
+import { graph, graphAll } from "./meta";
 import { cprValue, resultFor, TYPE_LABEL, type CampaignType } from "./results";
 import { addDays, diffDays } from "./dates";
 
@@ -39,6 +39,7 @@ export type WatchRow = {
   id: string; clientId: string; clientName: string; level: WatchLevel; name: string; type: string; typeLabel: string;
   note: string; startedOn: string; days: number; status: "open" | "closed"; spend: number; results: number;
   cost: string; before: string; limit: string | null; flag: WatchFlag; closedOn: string; closeNote: string; error: string;
+  parentCamp: string; parentAdset: string;
 };
 
 const RANK: Record<WatchFlag, number> = { stop: 0, worse: 0, over: 1, new: 2, same: 2, better: 3 };
@@ -51,6 +52,15 @@ export async function loadWatch(sb: any, today: string, withClosed = false): Pro
   if (!items) return [];
   const cl = new Map<string, any>(((clients || []) as any[]).map((c) => [c.id, c]));
   const list = (items as any[]).filter((i) => i.status === "open" || withClosed);
+
+  // fill in the campaign / ad set of older items once, then remember it
+  await Promise.all(list.filter((i) => i.level !== "campaign" && i.parent_camp == null).map(async (i) => {
+    try {
+      const info = await graph<any>(i.meta_id, { fields: i.level === "ad" ? "campaign{name},adset{name}" : "campaign{name}" });
+      i.parent_camp = info.campaign?.name || ""; i.parent_adset = info.adset?.name || "";
+      await sb.from("watch_items").update({ parent_camp: i.parent_camp, parent_adset: i.parent_adset }).eq("id", i.id);
+    } catch { /* shown without a parent */ }
+  }));
 
   const rows = await Promise.all(list.map(async (i): Promise<WatchRow> => {
     const c = cl.get(i.client_id);
@@ -73,6 +83,7 @@ export async function loadWatch(sb: any, today: string, withClosed = false): Pro
       note: i.note || "", startedOn: i.started_on, days, status: i.status, spend, results,
       cost: costText(type, cprValue(type, spend, results)), before: costText(type, before),
       limit: lim > 0 ? costText(type, lim) : null, flag, closedOn: i.closed_on || "", closeNote: i.close_note || "", error,
+      parentCamp: i.parent_camp || "", parentAdset: i.parent_adset || "",
     };
   }));
 

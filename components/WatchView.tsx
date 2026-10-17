@@ -33,8 +33,11 @@ export default function WatchView({ clients, rows }: { clients: { id: string; na
     return () => { alive = false; };
   }, [adding, cid, lvl]);
 
-  const open = rows.filter((r) => r.status === "open");
-  const closed = rows.filter((r) => r.status === "closed");
+  const [fc, setFc] = useState("");
+  const [sort, setSort] = useState<"status" | "campaign">("status");
+  const clientsWith = clients.filter((c) => rows.some((r) => r.clientId === c.id));
+  const open = rows.filter((r) => r.status === "open" && (!fc || r.clientId === fc));
+  const closed = rows.filter((r) => r.status === "closed" && (!fc || r.clientId === fc));
   const shown = targets.filter((t) => !q || (t.name + " " + t.camp + " " + t.adset).toLowerCase().includes(q.toLowerCase()));
 
   const add = (t: Target) => start(async () => {
@@ -43,10 +46,14 @@ export default function WatchView({ clients, rows }: { clients: { id: string; na
     if (r.ok) { setAdding(false); setNote(""); setQ(""); router.refresh(); }
   });
 
+  const path = (r: WatchRow) => (r.parentCamp ? `${r.parentCamp}${r.parentAdset ? " › " + r.parentAdset : ""}` : "");
   const line = (r: WatchRow) => (
     <tr key={r.id}>
-      <td><span className="wdotl" style={{ background: FLAG_COLOR[r.flag] }} /><b>{r.name}</b>{r.note && <div className="sub" style={{ margin: 0 }} dir="auto">{r.note}</div>}</td>
-      <td>{r.clientName}</td>
+      <td>
+        <span className="wdotl" style={{ background: FLAG_COLOR[r.flag] }} /><b>{r.name}</b>
+        {path(r) && <div className="sub" style={{ margin: "2px 0 0 15px" }} dir="auto">{path(r)}</div>}
+        {r.note && <div className="sub" style={{ margin: "2px 0 0 15px", fontStyle: "italic" }} dir="auto">{r.note}</div>}
+      </td>
       <td>{LEVEL[r.level]}</td>
       <td>{r.days}d</td>
       <td>{r.before}</td>
@@ -62,7 +69,49 @@ export default function WatchView({ clients, rows }: { clients: { id: string; na
     </tr>
   );
   const head = (
-    <thead><tr><th>Item</th><th>Client</th><th>Type</th><th>Days</th><th>Before</th><th>Now</th><th>Spend</th><th>Results</th><th>Status</th><th /></tr></thead>
+    <thead><tr><th>Item</th><th>Type</th><th>Days</th><th>Before</th><th>Now</th><th>Spend</th><th>Results</th><th>Status</th><th /></tr></thead>
+  );
+
+  // One section per client, worst clients first; inside a client either by status or by campaign
+  const RANK: Record<WatchRow["flag"], number> = { stop: 0, worse: 0, over: 1, new: 2, same: 2, better: 3 };
+  const LV = { campaign: 0, adset: 1, ad: 2 } as const;
+  const groups = (list: WatchRow[]) => {
+    const m = new Map<string, WatchRow[]>();
+    for (const r of list) { if (!m.has(r.clientId)) m.set(r.clientId, []); m.get(r.clientId)!.push(r); }
+    const arr = [...m.values()].map((rs) => ({
+      id: rs[0].clientId, name: rs[0].clientName,
+      rows: [...rs].sort(sort === "status"
+        ? (a, b) => RANK[a.flag] - RANK[b.flag] || (a.parentCamp || a.name).localeCompare(b.parentCamp || b.name) || LV[a.level] - LV[b.level] || a.name.localeCompare(b.name)
+        : (a, b) => (a.level === "campaign" ? a.name : a.parentCamp).localeCompare(b.level === "campaign" ? b.name : b.parentCamp) || LV[a.level] - LV[b.level] || (a.parentAdset || a.name).localeCompare(b.parentAdset || b.name) || a.name.localeCompare(b.name)),
+      worst: Math.min(...rs.map((r) => RANK[r.flag])),
+    }));
+    return arr.sort((a, b) => a.worst - b.worst || a.name.localeCompare(b.name));
+  };
+  const count = (rs: WatchRow[], f: (x: WatchRow) => boolean) => rs.filter(f).length;
+  const table = (list: WatchRow[]) => (
+    <div style={{ overflowX: "auto" }}>
+      <table className="tbl">
+        {head}
+        <tbody>
+          {groups(list).map((g) => (
+            <FragmentRow key={g.id}>
+              <tr>
+                <td colSpan={9} style={{ background: "var(--surface2)", padding: "8px 12px" }}>
+                  <b>{g.name}</b>
+                  <span className="sub" style={{ margin: "0 0 0 10px" }}>
+                    {g.rows.length}
+                    {count(g.rows, (r) => r.flag === "stop" || r.flag === "worse") > 0 && <span style={{ color: "var(--red)", marginLeft: 8 }}>● {count(g.rows, (r) => r.flag === "stop" || r.flag === "worse")}</span>}
+                    {count(g.rows, (r) => r.flag === "over") > 0 && <span style={{ color: "var(--orange)", marginLeft: 8 }}>● {count(g.rows, (r) => r.flag === "over")}</span>}
+                    {count(g.rows, (r) => r.flag === "better") > 0 && <span style={{ color: "var(--green)", marginLeft: 8 }}>● {count(g.rows, (r) => r.flag === "better")}</span>}
+                  </span>
+                </td>
+              </tr>
+              {g.rows.map((r) => <FragmentRow key={r.id}>{line(r)}{r.status === "closed" && r.closeNote && <tr><td colSpan={9}><span className="sub" dir="auto" style={{ margin: 0 }}>{r.closeNote}</span></td></tr>}</FragmentRow>)}
+            </FragmentRow>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 
   return (
@@ -72,18 +121,25 @@ export default function WatchView({ clients, rows }: { clients: { id: string; na
         <button className="btn pri" onClick={() => setAdding(true)}>+ Add</button>
       </div>
 
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+        <select value={fc} onChange={(e) => setFc(e.target.value)}>
+          <option value="">All clients</option>
+          {clientsWith.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <div className="btabs" style={{ margin: 0 }}>
+          <span className={`btab ${sort === "status" ? "on" : ""}`} onClick={() => setSort("status")}>By status</span>
+          <span className={`btab ${sort === "campaign" ? "on" : ""}`} onClick={() => setSort("campaign")}>By campaign</span>
+        </div>
+      </div>
+
       <div className="panel">
-        {open.length === 0 ? <div className="sub" style={{ margin: 0 }}>Nothing is being watched</div> : (
-          <div style={{ overflowX: "auto" }}><table className="tbl">{head}<tbody>{open.map(line)}</tbody></table></div>
-        )}
+        {open.length === 0 ? <div className="sub" style={{ margin: 0 }}>Nothing is being watched</div> : table(open)}
       </div>
 
       {closed.length > 0 && (
         <div className="panel" style={{ marginTop: 14 }}>
           <h3 style={{ cursor: "pointer" }} onClick={() => setShowClosed(!showClosed)}>Closed ({closed.length}) {showClosed ? "▾" : "▸"}</h3>
-          {showClosed && <div style={{ overflowX: "auto" }}><table className="tbl">{head}<tbody>{closed.map((r) => (
-            <FragmentRow key={r.id}>{line(r)}{r.closeNote && <tr><td colSpan={10}><span className="sub" dir="auto" style={{ margin: 0 }}>{r.closeNote}</span></td></tr>}</FragmentRow>
-          ))}</tbody></table></div>}
+          {showClosed && table(closed)}
         </div>
       )}
 

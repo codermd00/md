@@ -14,7 +14,7 @@ export default function WatchLine({ r }: { r: WatchRow }) {
       <span style={{ minWidth: 0 }}>
         <span className="wdotl" style={{ background: FLAG_COLOR[r.flag] }} />
         <b>{r.name}</b>
-        <div className="sub" style={{ margin: 0 }}>{r.clientName} · {LEVEL[r.level]} · day {r.days}</div>
+        <div className="sub" style={{ margin: 0 }}>{r.clientName} · {r.parentCamp ? `${r.parentCamp}${r.parentAdset ? " › " + r.parentAdset : ""}` : LEVEL[r.level]} · day {r.days}</div>
       </span>
       <span style={{ textAlign: "right", flex: "none" }}>
         <b style={{ color: FLAG_COLOR[r.flag] }}>{r.before !== "—" ? `${r.before} → ` : ""}{r.cost}</b>
