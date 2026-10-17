@@ -36,7 +36,7 @@ export default async function OverviewPage() {
   const dayAgo = new Date(Date.now() - 86400000).toISOString();
 
   const [{ data: clients }, { data: setRows }, { data: camps }, { data: logs }, { data: orders }, { data: todayOrders }, { data: tasks }, { data: notes }, spendToday, { count: readyPosts }] = await Promise.all([
-    sb.from("clients").select("id,name,period_start,period_end,budget,account_status,synced_at").order("name"),
+    sb.from("clients").select("id,name,period_start,period_end,budget,account_status,synced_at,alert_limits").order("name"),
     sb.from("settings").select("key,value").eq("key", "late_threshold"),
     sb.from("campaigns").select("id,client_id,name,type,effective_status"),
     sb.from("sync_log").select("client_id,ok,detail,created_at").gte("created_at", dayAgo).order("created_at", { ascending: false }).limit(200),
@@ -84,7 +84,7 @@ export default async function OverviewPage() {
   const yClients: YClient[] = [];
   for (const c of cl) {
     const camps2: YClient["campaigns"] = [];
-    let spendTotal = 0, worse = false, better = false, stop = false;
+    let spendTotal = 0, worse = false, better = false, stop = false, over = false;
     for (const k of cs.filter((x) => x.client_id === c.id)) {
       // only days inside the client's current period count
       const mine = ((yRows || []) as any[]).filter((r) => r.entity_id === k.id && (!c.period_start || r.day >= c.period_start));
@@ -97,10 +97,14 @@ export default async function OverviewPage() {
       const cost = cprValue(k.type, ys, yr), prev = cprValue(k.type, ps, pr);
       const delta = cost !== null && prev ? (cost / prev - 1) * 100 : null;
       const stopped = active && ys < MIN_RUNNING;
-      if (stopped) stop = true; else if (delta !== null && delta > 10) worse = true; else if (delta !== null && delta < -10) better = true;
+      // Cost above the client's limit for this campaign type (set in the client file) is never "good", even when it improved
+      const lim = Number(c.alert_limits?.[k.type]) || 0;
+      const isOver = !stopped && cost !== null && lim > 0 && cost > lim;
+      if (stopped) stop = true; else if (delta !== null && delta > 10) worse = true; else if (isOver) over = true; else if (delta !== null && delta < -10) better = true;
       spendTotal += ys;
       camps2.push({
-        name: k.name, type: TYPE_LABEL[k.type as keyof typeof TYPE_LABEL], spend: ys, results: yr, stopped, delta,
+        name: k.name, type: TYPE_LABEL[k.type as keyof typeof TYPE_LABEL], spend: ys, results: yr, stopped, delta, over: isOver,
+        limit: lim > 0 ? "$" + (lim < 0.01 ? lim.toFixed(3) : lim.toFixed(2)) + (k.type === "reach" ? " /1K" : "") : null,
         cost: cost === null ? "—" : "$" + (cost < 0.01 ? cost.toFixed(3) : cost.toFixed(2)) + (k.type === "reach" ? " /1K" : " per result"),
       });
     }
@@ -110,9 +114,9 @@ export default async function OverviewPage() {
       continue;
     }
     camps2.sort((a, b) => b.spend - a.spend);
-    yClients.push({ id: c.id, name: c.name, spend: spendTotal, flag: stop ? "stop" : worse ? "worse" : better ? "better" : "same", campaigns: camps2 });
+    yClients.push({ id: c.id, name: c.name, spend: spendTotal, flag: stop ? "stop" : worse ? "worse" : over ? "over" : better ? "better" : "same", campaigns: camps2 });
   }
-  const yRank = { stop: 0, worse: 1, same: 2, better: 3 } as const;
+  const yRank = { stop: 0, worse: 1, over: 2, same: 3, better: 4 } as const;
   yClients.sort((a, b) => yRank[a.flag] - yRank[b.flag] || b.spend - a.spend);
   const yLabel = new Date(yDay + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 

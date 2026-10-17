@@ -2,12 +2,12 @@
 import Link from "next/link";
 import { useState } from "react";
 
-export type YCamp = { name: string; type: string; spend: number; results: number; cost: string; delta: number | null; stopped: boolean };
-export type YClient = { id: string; name: string; spend: number; flag: "stop" | "worse" | "better" | "same"; campaigns: YCamp[] };
+export type YCamp = { name: string; type: string; spend: number; results: number; cost: string; delta: number | null; stopped: boolean; over: boolean; limit: string | null };
+export type YClient = { id: string; name: string; spend: number; flag: "stop" | "worse" | "over" | "better" | "same"; campaigns: YCamp[] };
 
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
-const ICON = { stop: "⚠", worse: "▲", better: "▼", same: "●" } as const;
-const COLOR = { stop: "var(--red)", worse: "var(--red)", better: "var(--green)", same: "var(--t3)" } as const;
+const ICON = { stop: "⚠", worse: "▲", over: "▲", better: "▼", same: "●" } as const;
+const COLOR = { stop: "var(--red)", worse: "var(--red)", over: "var(--orange)", better: "var(--green)", same: "var(--t3)" } as const;
 const UNIT: Record<string, string> = { Messages: "messages", Reach: "reached", Visit: "visits", Engagement: "engagements", Other: "results" };
 
 export default function YesterdayStrip({ label, clients }: { label: string; clients: YClient[] }) {
@@ -42,8 +42,9 @@ export default function YesterdayStrip({ label, clients }: { label: string; clie
                       {k.stopped && <b style={{ color: "var(--red)" }}>⚠ Low · </b>}<b>{money(k.spend)}</b> · {Math.round(k.results).toLocaleString("en-US")} {UNIT[k.type] || "results"}
                       <div className="sub" style={{ margin: 0 }}>
                         {k.cost}
+                        {k.over && k.limit && <b style={{ marginLeft: 6, color: "var(--orange)" }}>over {k.limit}</b>}
                         {k.delta !== null && Math.abs(k.delta) >= 1 && (
-                          <b style={{ marginLeft: 6, color: k.delta > 0 ? "var(--red)" : "var(--green)" }}>{k.delta > 0 ? "▲" : "▼"} {Math.abs(Math.round(k.delta))}%</b>
+                          <b style={{ marginLeft: 6, color: k.delta > 0 ? "var(--red)" : k.over ? "var(--orange)" : "var(--green)" }}>{k.delta > 0 ? "▲" : "▼"} {Math.abs(Math.round(k.delta))}%</b>
                         )}
                       </div>
                     </>
