@@ -8,7 +8,7 @@ export default function DataHealth({ status, rows }: { status: "ok" | "warn" | "
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button className="btn" onClick={() => setOpen(true)} title="Data Health" style={{ fontSize: 18, lineHeight: 1, padding: "8px 12px" }}>{EMOJI[status]}</button>
+      <button className="btn" onClick={() => setOpen(true)} title="Data Health" style={{ fontSize: 10, lineHeight: 1, padding: "6px 9px", minHeight: 0 }}>{EMOJI[status]}</button>
       {open && (
         <div className="overlay" onClick={() => setOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
