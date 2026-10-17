@@ -76,10 +76,6 @@ export async function loadWatch(sb: any, today: string, withClosed = false): Pro
     };
   }));
 
-  // remember the flag so the red dot in the menu stays cheap
-  await Promise.all(rows.filter((r) => r.status === "open" && !r.error && r.flag !== (items as any[]).find((i) => i.id === r.id)?.last_flag)
-    .map((r) => sb.from("watch_items").update({ last_flag: r.flag }).eq("id", r.id)));
-
   rows.sort((a, b) => (a.status === b.status ? RANK[a.flag] - RANK[b.flag] : a.status === "open" ? -1 : 1));
   return rows;
 }
