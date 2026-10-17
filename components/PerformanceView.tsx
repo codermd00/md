@@ -1,4 +1,5 @@
 "use client";
+import WatchButton from "./WatchButton";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import LineChart, { type Series } from "./LineChart";
@@ -320,6 +321,7 @@ export default function PerformanceView(props: {
                         <span>Balance <b>{p.balance !== null ? money(p.balance) : "—"}</b></span>
                         <span style={{ marginLeft: "auto" }}>
                           <a style={{ color: "var(--blue2)", fontWeight: 600 }} onClick={(e) => { e.stopPropagation(); openEdit(c); }}>Edit</a>
+                          <span style={{ marginLeft: 12 }}><WatchButton level="campaign" dbId={c.id} /></span>
                         </span>
                       </div>
                       {!p.target && <div className="src">No target set</div>}

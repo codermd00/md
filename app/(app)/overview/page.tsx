@@ -6,6 +6,8 @@ import { fetchAll } from "@/lib/fetchall";
 import { TYPE_LABEL, cprValue } from "@/lib/results";
 import YesterdayStrip, { type YClient } from "@/components/YesterdayStrip";
 import DataHealth from "@/components/DataHealth";
+import WatchLine from "@/components/WatchLine";
+import { loadWatch, type WatchRow } from "@/lib/watch";
 import { addQuickNote } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +52,7 @@ export default async function OverviewPage() {
   const threshold = Number((setRows || [])[0]?.value) || 95;
   const cl: any[] = clients || [];
   const yDay = addDays(today, -1);
+  const watchRows: WatchRow[] = await loadWatch(sb, today, false).catch(() => []);
   const { data: yRows } = await sb.from("insights_daily").select("entity_id,client_id,day,spend,results").eq("level", "campaign")
     .gte("day", addDays(today, -4)).lte("day", yDay);
   const cs: any[] = camps || [];
@@ -210,8 +213,14 @@ export default async function OverviewPage() {
               )}
             </div>
 
-            {/* Reserved for the Watch page */}
-            <div />
+            <div className="panel">
+              <h3 style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Watch</span>
+                <Link href="/watch" style={{ color: "var(--blue2)", fontSize: 12, fontWeight: 600 }}>All</Link>
+              </h3>
+              {watchRows.length === 0 ? <div className="sub" style={{ marginBottom: 0 }}>—</div> : watchRows.slice(0, 8).map((r) => <WatchLine key={r.id} r={r} />)}
+              {watchRows.length > 8 && <div className="sub">+{watchRows.length - 8} more</div>}
+            </div>
 
             <div className="col">
               <div className="panel">

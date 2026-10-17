@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import WatchButton from "./WatchButton";
 import { duplicatePost, hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
 
 export type PostCard = {
   id: string; clientId: string; clientName: string; igMediaId: string; shortcode: string; permalink: string; mediaType: string;
   caption: string; username: string; thumb: string; postedAt: string | null; eligible: boolean | null; reason: string;
   status: "ready" | "running" | "done" | "skip" | "failed"; mode: "direct" | "copy" | ""; budget: string; days: string;
-  campId: string; campName: string; adsetId: string; adsetName: string; error: string; accountStatus: string;
+  campId: string; campName: string; adsetId: string; adsetName: string; error: string; accountStatus: string; hasAd: boolean;
 };
 
 const TABS = [["all", "All"], ["ready", "Ready"], ["running", "Running"], ["done", "Done"], ["skip", "Skip"], ["failed", "Failed"]] as const;
@@ -217,6 +218,7 @@ function PostModal({ post, onClose, onDone }: { post: PostCard; onClose: () => v
         )}
         {msg && <div className="msg err" dir="auto">{msg}</div>}
         <div className="acts">
+          {post.hasAd && <WatchButton btn level="ad" postId={post.id} />}
           {post.status === "failed" && <button className="btn" onClick={() => start(async () => { await resetPost(post.id); onDone(); })} disabled={pending}>Reset to Ready</button>}
           {(post.status === "running" || post.status === "done" || post.status === "failed") && <button className="btn" onClick={() => start(async () => { const r = await duplicatePost(post.id); if (r.ok) onDone(); else setMsg(r.message); })} disabled={pending}>Run again</button>}
           {canRun && !plan && <button className="btn" style={{ background: "var(--green)", color: "#fff", borderColor: "transparent" }} onClick={startRun} disabled={pending}>▶ Run</button>}

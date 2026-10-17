@@ -300,3 +300,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 .ov3c .col{display:flex;flex-direction:column;gap:14px}
 @media(max-width:1100px){.ov3c{grid-template-columns:1fr}}
 @media(max-width:1100px){.ov3c>div:empty{display:none}}
+
+.wdotl{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle;flex:none}
+.wdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-left:6px}
+@media(max-width:900px){.bnav a{position:relative}.bnav .wdot{position:absolute;top:4px;left:calc(50% + 9px);margin:0}}

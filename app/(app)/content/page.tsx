@@ -19,7 +19,7 @@ export default async function ContentPage() {
     eligible: p.eligible, reason: p.ineligible_reason || "", status: p.status, mode: p.mode || "",
     budget: p.budget != null ? String(p.budget) : "", days: p.days != null ? String(p.days) : "",
     campId: p.meta_campaign_id || "", campName: p.meta_campaign_name || "", adsetId: p.meta_adset_id || "", adsetName: p.meta_adset_name || "",
-    error: p.error || "", accountStatus: statusOf.get(p.client_id) || "",
+    error: p.error || "", accountStatus: statusOf.get(p.client_id) || "", hasAd: !!p.ad_meta_id,
   }));
   return <ContentView clients={(clients || []).map((c: any) => ({ id: c.id, name: c.name, hasIg: !!c.ig_user_id, watch: !!c.run_posts }))} posts={cards} />;
 }

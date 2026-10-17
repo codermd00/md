@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { rangeBreakdown, type RangeResult } from "@/app/(app)/performance/actions";
 import type { AdSetDTO, BreakdownRow, CampaignDTO } from "./PerformanceView";
 import { TYPE_LABEL } from "@/lib/results";
+import WatchButton from "./WatchButton";
 
 const DIMS = [
   { id: "results", label: "Results" }, { id: "region", label: "Region" }, { id: "age", label: "Age" }, { id: "gender", label: "Gender" },
@@ -134,6 +135,7 @@ export default function BreakdownPanel({ campaigns: allCampaigns, adsets: allAds
                ...allAdsets.filter((a) => a.campaignId === c.id && a.spend > 0).map((a) => <option key={a.id} value={a.id}>&nbsp;&nbsp;↳ {a.name}</option>)]
             ))}
           </select>
+          <span style={{ marginLeft: 12 }}><WatchButton level={allCampaigns.some((c) => c.id === ent) ? "campaign" : "adset"} dbId={ent} /></span>
         </div>
       </div>
       {range && (

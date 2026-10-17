@@ -21,7 +21,7 @@ const ITEMS = [
 const TAB_HREFS = ["/overview", "/clients", "/performance", "/content", "/crm"];
 const TAB_LABEL: Record<string, string> = { "/overview": "Overview", "/clients": "Clients", "/performance": "Perf", "/content": "Content", "/crm": "CRM" };
 
-export default function Sidebar() {
+export default function Sidebar({ watchAlert = false }: { watchAlert?: boolean }) {
   const path = usePathname();
   const router = useRouter();
   const [more, setMore] = useState(false);
@@ -47,7 +47,7 @@ export default function Sidebar() {
       <nav className="nav">
         {ITEMS.map((it) => (
           <Link key={it.href} href={it.href} className={path.startsWith(it.href) ? "on" : ""}>
-            {I(it.icon)} {it.label}
+            {I(it.icon)} {it.label}{watchAlert && it.href === "/overview" && <i className="wdot" />}
           </Link>
         ))}
       </nav>
@@ -57,7 +57,7 @@ export default function Sidebar() {
       </div>
       <nav className="bnav">
         {ITEMS.filter((x) => TAB_HREFS.includes(x.href)).map((it) => (
-          <Link key={it.href} href={it.href} className={path.startsWith(it.href) ? "on" : ""}>{I(it.icon)}<span>{TAB_LABEL[it.href]}</span></Link>
+          <Link key={it.href} href={it.href} className={path.startsWith(it.href) ? "on" : ""}>{I(it.icon)}<span>{TAB_LABEL[it.href]}</span>{watchAlert && it.href === "/overview" && <i className="wdot" />}</Link>
         ))}
         <button className={moreOn || more ? "on" : ""} onClick={() => setMore(!more)}>{I("M5 12h.01M12 12h.01M19 12h.01")}<span>More</span></button>
       </nav>
