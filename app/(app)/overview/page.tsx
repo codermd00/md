@@ -9,6 +9,7 @@ import DataHealth from "@/components/DataHealth";
 import { addQuickNote } from "./actions";
 
 export const dynamic = "force-dynamic";
+const MIN_RUNNING = 0.5; // an active campaign must spend more than this per day to count as running
 
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const ACCOUNT_HINT: Record<string, string> = {
@@ -37,7 +38,7 @@ export default async function OverviewPage() {
   const [{ data: clients }, { data: setRows }, { data: camps }, { data: logs }, { data: orders }, { data: todayOrders }, { data: tasks }, { data: notes }, spendToday, { count: readyPosts }] = await Promise.all([
     sb.from("clients").select("id,name,period_start,period_end,budget,account_status,synced_at").order("name"),
     sb.from("settings").select("key,value").eq("key", "late_threshold"),
-    sb.from("campaigns").select("id,client_id,name,type"),
+    sb.from("campaigns").select("id,client_id,name,type,effective_status"),
     sb.from("sync_log").select("client_id,ok,detail,created_at").gte("created_at", dayAgo).order("created_at", { ascending: false }).limit(200),
     Promise.resolve({ data: null as any }),
     sb.from("crm_orders").select("id,client_id").eq("day", today),
@@ -85,14 +86,17 @@ export default async function OverviewPage() {
     const camps2: YClient["campaigns"] = [];
     let spendTotal = 0, worse = false, better = false, stop = false;
     for (const k of cs.filter((x) => x.client_id === c.id)) {
-      const mine = ((yRows || []) as any[]).filter((r) => r.entity_id === k.id);
+      // only days inside the client's current period count
+      const mine = ((yRows || []) as any[]).filter((r) => r.entity_id === k.id && (!c.period_start || r.day >= c.period_start));
       const y = mine.filter((r) => r.day === yDay), p3 = mine.filter((r) => r.day !== yDay);
       const sum = (a: any[], f: string) => a.reduce((t, r) => t + Number(r[f] || 0), 0);
       const ys = sum(y, "spend"), yr = sum(y, "results"), ps = sum(p3, "spend"), pr = sum(p3, "results");
-      if (ys <= 0 && ps <= 0) continue;
+      // A campaign counts as running when it is ACTIVE and spent more than $0.50
+      const active = k.effective_status === "ACTIVE";
+      if (ys <= 0 && !(active && ps > 0)) continue;           // paused / finished campaigns stay hidden
       const cost = cprValue(k.type, ys, yr), prev = cprValue(k.type, ps, pr);
       const delta = cost !== null && prev ? (cost / prev - 1) * 100 : null;
-      const stopped = ys <= 0 && ps > 0;
+      const stopped = active && ys < MIN_RUNNING;
       if (stopped) stop = true; else if (delta !== null && delta > 10) worse = true; else if (delta !== null && delta < -10) better = true;
       spendTotal += ys;
       camps2.push({
@@ -202,6 +206,9 @@ export default async function OverviewPage() {
               )}
             </div>
 
+            {/* Reserved for the Watch page */}
+            <div />
+
             <div className="col">
               <div className="panel">
                 <h3>Orders Today</h3>
@@ -213,20 +220,17 @@ export default async function OverviewPage() {
                 ))}
               </div>
               <div className="panel">
+                <h3>Ending Soon</h3>
+                {endingSoon.length === 0 ? <div className="sub" style={{ marginBottom: 0 }}>—</div> : endingSoon.map((it, i) => (
+                  <div className="dsum" key={i}><span>{link(it)}</span><span className={`chip sm ${it.text.includes("today") ? "bad" : "warn"}`}>{it.text.replace("Period ends ", "")}</span></div>
+                ))}
+              </div>
+              <div className="panel">
                 <h3>Tasks</h3>
                 {(tasks || []).length === 0 ? <div className="sub" style={{ marginBottom: 0 }}>—</div> : (tasks as any[]).slice(0, 5).map((t) => (
                   <div className="dsum" key={t.id} style={{ cursor: "default" }}>
                     <span>{t.title}</span><span className={`chip sm ${t.priority === "high" ? "bad" : "mute"}`}>{t.due_date || t.priority}</span>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="col">
-              <div className="panel">
-                <h3>Ending Soon</h3>
-                {endingSoon.length === 0 ? <div className="sub" style={{ marginBottom: 0 }}>—</div> : endingSoon.map((it, i) => (
-                  <div className="dsum" key={i}><span>{link(it)}</span><span className={`chip sm ${it.text.includes("today") ? "bad" : "warn"}`}>{it.text.replace("Period ends ", "")}</span></div>
                 ))}
               </div>
               <div className="panel">

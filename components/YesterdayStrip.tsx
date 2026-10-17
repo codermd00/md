@@ -37,9 +37,9 @@ export default function YesterdayStrip({ label, clients }: { label: string; clie
                   <div className="sub" style={{ margin: 0 }}>{k.type}</div>
                 </span>
                 <span style={{ textAlign: "right" }}>
-                  {k.stopped ? <b style={{ color: "var(--red)" }}>⚠ No spend</b> : (
+                  {k.stopped && k.spend <= 0 ? <b style={{ color: "var(--red)" }}>⚠ No spend</b> : (
                     <>
-                      <b>{money(k.spend)}</b> · {Math.round(k.results).toLocaleString("en-US")} {UNIT[k.type] || "results"}
+                      {k.stopped && <b style={{ color: "var(--red)" }}>⚠ Low · </b>}<b>{money(k.spend)}</b> · {Math.round(k.results).toLocaleString("en-US")} {UNIT[k.type] || "results"}
                       <div className="sub" style={{ margin: 0 }}>
                         {k.cost}
                         {k.delta !== null && Math.abs(k.delta) >= 1 && (
