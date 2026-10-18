@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import TasksView from "@/components/TasksView";
+import { savedCid } from "@/lib/cid";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,8 @@ export default async function TasksPage() {
   ]);
   return (
     <TasksView
+      key={savedCid((clients || []) as any[])}
+      initialClient={savedCid((clients || []) as any[])}
       clients={(clients || []) as any[]}
       tasks={(tasks || []).map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, status: t.status, clientId: t.client_id || "", due: t.due_date || "" }))}
       notes={(notes || []).map((n: any) => ({ id: n.id, title: n.title || "", body: n.body || "", at: n.created_at }))}

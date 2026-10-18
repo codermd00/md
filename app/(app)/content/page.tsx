@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import ContentView, { type PostCard } from "@/components/ContentView";
+import { savedCid } from "@/lib/cid";
 
 export const dynamic = "force-dynamic";
 
@@ -21,5 +22,6 @@ export default async function ContentPage() {
     campId: p.meta_campaign_id || "", campName: p.meta_campaign_name || "", adsetId: p.meta_adset_id || "", adsetName: p.meta_adset_name || "",
     error: p.error || "", accountStatus: statusOf.get(p.client_id) || "", hasAd: !!p.ad_meta_id,
   }));
-  return <ContentView clients={(clients || []).map((c: any) => ({ id: c.id, name: c.name, hasIg: !!c.ig_user_id, watch: !!c.run_posts }))} posts={cards} />;
+  const initial = savedCid(clients as any[]);
+  return <ContentView key={initial} initialClient={initial} clients={(clients || []).map((c: any) => ({ id: c.id, name: c.name, hasIg: !!c.ig_user_id, watch: !!c.run_posts }))} posts={cards} />;
 }

@@ -36,13 +36,15 @@ const cpm = (a: Agg) => (a.impressions > 0 ? (a.spend / a.impressions) * 1000 : 
 const ctr = (a: Agg) => (a.impressions > 0 ? a.clicks / a.impressions : null);
 const conv = (a: Agg) => (a.clicks > 0 ? a.results / a.clicks : null);
 const pct = (n: number) => Math.round(n);
-const money = (n: number) => "$" + (n < 0.01 ? n.toFixed(4) : n < 1 ? n.toFixed(3) : n.toFixed(2));
-const TYPE_AR: Record<CampaignType, string> = { messages: "messages", reach: "reach", visit: "visits", engagement: "engagements", other: "results" };
+// Arabic text is shown right-to-left: isolate numbers and names so "$0.02" and English names keep their order
+const LTR = (t: string) => "\u2066" + t + "\u2069";
+const money = (n: number) => LTR("$" + (n < 0.01 ? n.toFixed(4) : n < 1 ? n.toFixed(3) : n.toFixed(2)));
+const TYPE_AR: Record<CampaignType, string> = { messages: "رسائل", reach: "وصول", visit: "زيارات", engagement: "تفاعلات", other: "نتائج" };
 
 function rc3(recent: Agg, before: Agg, ok: boolean, type: CampaignType): string {
   if (!ok) return "";
   const r = unitCpr(type, recent), b = unitCpr(type, before);
-  return r !== null && b !== null && r > b * 1.1 ? `Up ${pct((r / b - 1) * 100)}% in the last ${recent.days} days.` : "";
+  return r !== null && b !== null && r > b * 1.1 ? `ارتفاع ${pct((r / b - 1) * 100)}% في آخر ${recent.days} أيام.` : "";
 }
 
 export function diagnose(i: DiagInput): Finding[] {
@@ -59,29 +61,29 @@ export function diagnose(i: DiagInput): Finding[] {
   // 1) الحالة والتسليم
   if (i.effectiveStatus && i.effectiveStatus !== "ACTIVE") {
     out.push({
-      level: "bad", title: `Campaign not active (${i.effectiveStatus})`,
-      cause: "Spend is stopped, so no results.",
-      action: "Reactivate it, or check why it stopped.",
+      level: "bad", title: `الحملة غير فعّالة (${LTR(i.effectiveStatus)})`,
+      cause: "الصرف متوقف، لذلك لا توجد نتائج.",
+      action: "أعد تشغيلها، أو افحص سبب توقفها.",
     });
   } else if (done.length >= 2 && done.slice(-2).every((d) => d.spend === 0)) {
     out.push({
-      level: "bad", title: "No spend for 2 days although active",
-      cause: "Likely no delivery: ad in review or rejected, payment issue, or audience too narrow.",
-      action: "Check ad sets and ads in Ads Manager → Delivery.",
+      level: "bad", title: "لا يوجد صرف منذ يومين رغم أن الحملة فعّالة",
+      cause: "غالباً لا يوجد تسليم: الإعلان قيد المراجعة أو مرفوض، أو مشكلة في الدفع، أو الجمهور ضيق جداً.",
+      action: "افحص الـ Ad sets والإعلانات في Ads Manager (عمود Delivery).",
     });
   }
   const sick = i.adsets.filter((a) => ["WITH_ISSUES", "DISAPPROVED", "PENDING_REVIEW", "IN_PROCESS"].includes(a.effectiveStatus));
   if (sick.length) {
     out.push({
       level: sick.some((a) => ["WITH_ISSUES", "DISAPPROVED"].includes(a.effectiveStatus)) ? "bad" : "warn",
-      title: `Ad sets with issues: ${sick.map((a) => `${a.name} (${a.effectiveStatus})`).join(", ")}`,
-      cause: "A rejected or in-review ad blocks full delivery.",
-      action: "Fix or replace the affected ads.",
+      title: `Ad sets فيها مشاكل: ${sick.map((a) => `${LTR(a.name)} (${LTR(a.effectiveStatus)})`).join("، ")}`,
+      cause: "إعلان مرفوض أو قيد المراجعة يمنع التسليم الكامل.",
+      action: "عالج الإعلانات المتأثرة أو استبدلها.",
     });
   }
 
   // 2) الصرف: متأخر عن الخطة، أم مصروف لكن النتيجة متأخرة (الهدف عالٍ أو السعر عالٍ)
-  const d2 = (n: number) => "$" + n.toFixed(2);
+  const d2 = (n: number) => LTR("$" + n.toFixed(2));
   if (i.goalBudget && p.total > 0 && p.elapsed >= 2 && i.effectiveStatus === "ACTIVE") {
     const planned = (i.goalBudget * Math.min(p.elapsed, p.total)) / p.total;
     // Behind on spend matters only when results are not on track (a lower price can make up the missing spend)
@@ -94,23 +96,23 @@ export function diagnose(i: DiagInput): Finding[] {
       const needDaily = p.daysLeft && p.daysLeft > 0 ? left / p.daysLeft : null;
       out.push({
         level: share < 60 ? "bad" : "warn",
-        title: `Spend is behind plan by ${d2(missing)} (${d2(i.spend)} of ${d2(planned)} planned to date)`,
-        cause: `Plan is ${d2(planDaily)} per day, and the budget was not spent at that rate.`,
+        title: `الصرف متأخر عن الخطة بمقدار ${d2(missing)} (صُرف ${d2(i.spend)} من ${d2(planned)} المخطط حتى اليوم)`,
+        cause: `الخطة ${d2(planDaily)} يومياً، والميزانية لم تُصرف بهذا المعدل.`,
         action: needDaily !== null
-          ? `Spend ${d2(needDaily)} per day (${needDaily >= planDaily ? "+" : "-"}${d2(Math.abs(needDaily - planDaily))}) for the ${p.daysLeft} days left, or add a catch-up campaign of ${d2(missing)}.`
-          : `Add a catch-up campaign of ${d2(missing)}, or accept the shortfall.`,
+          ? `اصرف ${d2(needDaily)} يومياً (${needDaily >= planDaily ? "زيادة" : "نقص"} ${d2(Math.abs(needDaily - planDaily))}) للأيام المتبقية (${p.daysLeft})، أو أضف حملة تعويض بمبلغ ${d2(missing)}.`
+          : `أضف حملة تعويض بمبلغ ${d2(missing)}، أو اقبل النقص.`,
       });
     } else if (i.goalBudget && i.spend > i.goalBudget) {
       out.push({
-        level: "warn", title: `Spend exceeded campaign budget (${money(i.spend)} of ${money(i.goalBudget)})`,
-        cause: "Ad set budgets are higher than the budget set here.",
-        action: "Lower ad set budgets or update the campaign budget in Edit.",
+        level: "warn", title: `الصرف تجاوز ميزانية الحملة (${money(i.spend)} من ${money(i.goalBudget)})`,
+        cause: "ميزانيات الـ Ad sets أعلى من الميزانية المحددة هنا.",
+        action: "خفّض ميزانيات الـ Ad sets أو حدّث ميزانية الحملة من Edit.",
       });
     }
     // Spend is on plan but results are late: either the target is too high for the budget, or the price is too high
     if (planned > 0 && i.spend >= planned * 0.85 && p.target && (p.status === "late" || p.status === "missed") && i.cpr !== null && i.type !== "other") {
       const k = i.type === "reach" ? 1000 : 1;
-      const unit = i.type === "reach" ? " per 1000" : "";
+      const unit = i.type === "reach" ? " لكل 1000" : "";
       const req = (i.goalBudget / p.target) * k;             // cost that hits the target with the full budget
       if (i.cpr > req * 1.02) {
         const reach = ((i.goalBudget / i.cpr) * k / p.target) * 100;
@@ -121,23 +123,23 @@ export function diagnose(i: DiagInput): Finding[] {
         if (priceHigh === true) {
           out.push({
             level: "bad",
-            title: `Spend is on plan but results are late: price is high (${money(i.cpr)}${unit}${i.costLimit ? `, limit ${money(i.costLimit)}` : ""})`,
-            cause: `At this price the ${money(i.goalBudget)} budget reaches about ${pct(reach)}% of the target; the target needs ${money(req)}${unit}.`,
-            action: "Lower the cost (ads, audience, placements) to reach the target.",
+            title: `الصرف على الخطة لكن النتائج متأخرة: السعر مرتفع (${money(i.cpr)}${unit}${i.costLimit ? `، الحد ${money(i.costLimit)}` : ""})`,
+            cause: `بهذا السعر تصل ميزانية ${money(i.goalBudget)} إلى حوالي ${pct(reach)}% من الهدف؛ والهدف يحتاج ${money(req)}${unit}.`,
+            action: "اخفض التكلفة (الإعلانات، الجمهور، المواضع) للوصول إلى الهدف.",
           });
         } else if (priceHigh === false) {
           out.push({
             level: "bad",
-            title: "Spend is on plan but results are late: target is too high for the budget",
-            cause: `Price is normal (${money(i.cpr)}${unit}), but the target needs ${money(req)}${unit} with the ${money(i.goalBudget)} budget.`,
-            action: `Raise the budget to about ${money(budgetNeeded)}, or lower the target to about ${nf(targetFit)}.`,
+            title: "الصرف على الخطة لكن النتائج متأخرة: الهدف أعلى من الميزانية",
+            cause: `السعر طبيعي (${money(i.cpr)}${unit})، لكن الهدف يحتاج ${money(req)}${unit} مع ميزانية ${money(i.goalBudget)}.`,
+            action: `ارفع الميزانية إلى حوالي ${money(budgetNeeded)}، أو اخفض الهدف إلى حوالي ${nf(targetFit)}.`,
           });
         } else {
           out.push({
             level: "bad",
-            title: "Spend is on plan but results are late: target is too high for the budget, or the price is high",
-            cause: `The target needs ${money(req)}${unit} with the ${money(i.goalBudget)} budget; the current price is ${money(i.cpr)}${unit}.`,
-            action: `Raise the budget to about ${money(budgetNeeded)}, lower the target to about ${nf(targetFit)}, or reduce the cost.`,
+            title: "الصرف على الخطة لكن النتائج متأخرة: الهدف أعلى من الميزانية أو السعر مرتفع",
+            cause: `الهدف يحتاج ${money(req)}${unit} مع ميزانية ${money(i.goalBudget)}؛ والسعر الحالي ${money(i.cpr)}${unit}.`,
+            action: `ارفع الميزانية إلى حوالي ${money(budgetNeeded)}، أو اخفض الهدف إلى حوالي ${nf(targetFit)}، أو اخفض التكلفة.`,
           });
         }
       }
@@ -156,34 +158,34 @@ export function diagnose(i: DiagInput): Finding[] {
       if (i.type !== "reach" && rConv && bConv) parts.push({ k: "conv", r: bConv / rConv });
       parts.sort((a, b) => b.r - a.r);
       const top = parts[0];
-      let cause = "No single clear factor; small rises in several.";
-      let action = "Watch 2 more days before changing anything.";
+      let cause = "لا يوجد عامل واحد واضح؛ ارتفاعات صغيرة في عدة عوامل.";
+      let action = "راقب يومين إضافيين قبل تغيير أي شيء.";
       if (top && top.r >= 1.15) {
         if (top.k === "cpm") {
-          cause = `CPM rose ${pct((top.r - 1) * 100)}%: more competition, narrower audience, or season.`;
-          action = "Widen the audience, enable Advantage+ placements, or test a new audience.";
+          cause = `ارتفع الـ CPM بنسبة ${pct((top.r - 1) * 100)}%: منافسة أكثر، أو جمهور أضيق، أو موسم.`;
+          action = "وسّع الجمهور، فعّل Advantage+ placements، أو جرّب جمهوراً جديداً.";
         } else if (top.k === "ctr") {
-          cause = `CTR fell ${pct((top.r - 1) * 100)}%: the ad is losing appeal (fatigue or weak hook).`;
-          action = "Change the creative or hook, add a new ad.";
+          cause = `انخفض الـ CTR بنسبة ${pct((top.r - 1) * 100)}%: الإعلان يفقد جاذبيته (إرهاق أو hook ضعيف).`;
+          action = "غيّر التصميم أو الـ hook، وأضف إعلاناً جديداً.";
         } else {
-          cause = `Clicks convert less (down ${pct((top.r - 1) * 100)}%): offer, post-click experience, or reply speed.`;
-          action = i.type === "messages" ? "Review the welcome message, reply speed and offer." : "Review the destination and what users see after clicking.";
+          cause = `النقرات تتحول بشكل أقل (انخفاض ${pct((top.r - 1) * 100)}%): العرض، أو تجربة ما بعد النقر، أو سرعة الرد.`;
+          action = i.type === "messages" ? "راجع رسالة الترحيب وسرعة الرد والعرض." : "راجع وجهة النقر وما يراه المستخدم بعدها.";
         }
       }
       if (finished) {
         out.push({
-          level: "warn", title: `Target reached, but cost rose ${worse}% in the last ${recent.days} days (${money(rc)} vs ${money(bc)}${i.type === "reach" ? " per 1000" : ""})`,
-          cause, action: `${action} ${p.balance && p.balance > 0 ? `To get the most from the remaining ${money(p.balance)}: fix the cause, move some to a late campaign, or stop it.` : ""}`.trim(),
+          level: "warn", title: `تحقق الهدف، لكن التكلفة ارتفعت ${worse}% في آخر ${recent.days} أيام (${money(rc)} مقابل ${money(bc)}${i.type === "reach" ? " لكل 1000" : ""})`,
+          cause, action: `${action} ${p.balance && p.balance > 0 ? `للاستفادة من المتبقي ${money(p.balance)}: عالج السبب، أو انقل جزءاً منه إلى حملة متأخرة، أو أوقفها.` : ""}`.trim(),
         });
       } else
-      out.push({ level: "bad", title: `Cost per result rose ${worse}% in the last ${recent.days} days (${money(rc)} vs ${money(bc)}${i.type === "reach" ? " per 1000" : ""})`, cause, action });
+      out.push({ level: "bad", title: `تكلفة النتيجة ارتفعت ${worse}% في آخر ${recent.days} أيام (${money(rc)} مقابل ${money(bc)}${i.type === "reach" ? " لكل 1000" : ""})`, cause, action });
     }
   }
   if (i.cpr !== null && i.prevCpr && i.cpr > i.prevCpr * 1.2) {
     out.push({
-      level: "warn", title: `Cost is ${pct((i.cpr / i.prevCpr - 1) * 100)}% higher than the previous period`,
-      cause: "Auction, audience or ads changed since the previous period.",
-      action: "Compare ads and audiences between periods and restore what worked.",
+      level: "warn", title: `التكلفة أعلى بنسبة ${pct((i.cpr / i.prevCpr - 1) * 100)}% من الفترة السابقة`,
+      cause: "تغيّر المزاد أو الجمهور أو الإعلانات منذ الفترة السابقة.",
+      action: "قارن الإعلانات والجماهير بين الفترتين وأعد ما كان ناجحاً.",
     });
   }
 
@@ -192,20 +194,20 @@ export function diagnose(i: DiagInput): Finding[] {
     const ctrDrop = hasCompare && ctr(recent) && ctr(before) ? (ctr(before)! / ctr(recent)!) : 1;
     if (i.frequency >= 2.5 && ctrDrop >= 1.15) {
       out.push({
-        level: "bad", title: `Ad fatigue: frequency ${i.frequency.toFixed(1)} with falling CTR`,
-        cause: "The audience has seen the ad too often.",
-        action: "Add new creative or widen the audience.",
+        level: "bad", title: `إرهاق إعلاني: التكرار ${i.frequency.toFixed(1)} مع انخفاض الـ CTR`,
+        cause: "الجمهور شاهد الإعلان مرات كثيرة.",
+        action: "أضف تصميماً جديداً أو وسّع الجمهور.",
       });
     } else if (i.frequency >= 3.5) {
       out.push({
-        level: "warn", title: `High frequency (${i.frequency.toFixed(1)})`,
-        cause: "The audience is nearing saturation.", action: "Prepare new creative before results drop.",
+        level: "warn", title: `تكرار مرتفع (${i.frequency.toFixed(1)})`,
+        cause: "الجمهور يقترب من التشبع.", action: "جهّز تصميماً جديداً قبل أن تنخفض النتائج.",
       });
     }
   } else if (i.frequency !== null && i.type === "reach" && i.frequency >= 4) {
     out.push({
-      level: "warn", title: `Frequency ${i.frequency.toFixed(1)} on a reach campaign`,
-      cause: "The same people are being reached again.", action: "Widen the audience or lower the daily budget.",
+      level: "warn", title: `التكرار ${i.frequency.toFixed(1)} في حملة Reach`,
+      cause: "يتم الوصول إلى نفس الأشخاص مرة أخرى.", action: "وسّع الجمهور أو خفّض الميزانية اليومية.",
     });
   }
 
@@ -214,9 +216,9 @@ export function diagnose(i: DiagInput): Finding[] {
     const rPer = recent.results / recent.days, bPer = before.results / before.days;
     if (bPer > 0 && rPer < bPer * 0.75) {
       out.push({
-        level: "warn", title: `Daily results fell ${pct((1 - rPer / bPer) * 100)}% (${rPer.toFixed(1)} vs ${bPer.toFixed(1)} per day)`,
-        cause: "Lower delivery, appeal, or ad fatigue.",
-        action: "Review the weakest ads and ad sets with dropped spend.",
+        level: "warn", title: `النتائج اليومية انخفضت ${pct((1 - rPer / bPer) * 100)}% (${rPer.toFixed(1)} مقابل ${bPer.toFixed(1)} يومياً)`,
+        cause: "انخفاض التسليم أو الجاذبية، أو إرهاق إعلاني.",
+        action: "راجع أضعف الإعلانات والـ Ad sets التي انخفض صرفها.",
       });
     }
   }
@@ -227,7 +229,7 @@ export function diagnose(i: DiagInput): Finding[] {
     const perDayNow = recent.days ? recent.results / recent.days : 0;
     const need = remaining / p.daysLeft;
     const label = TYPE_AR[i.type];
-    const k = i.type === "reach" ? " per 1000" : "";
+    const k = i.type === "reach" ? " لكل 1000" : "";
     if (remaining > 0 && perDayNow < need * 0.95) {
       const unit = i.cpr ?? unitCpr(i.type, { spend: i.spend, results: i.result });
       const req = p.balance !== null && p.balance > 0
@@ -235,20 +237,20 @@ export function diagnose(i: DiagInput): Finding[] {
       if (req !== null && unit !== null && unit > req * 1.02) {
         const cut = pct((1 - req / unit) * 100);
         const trend = i.prevCpr && unit > i.prevCpr * 1.05
-          ? `Up ${pct((unit / i.prevCpr - 1) * 100)}% vs previous period (${money(i.prevCpr)}).`
+          ? `ارتفاع ${pct((unit / i.prevCpr - 1) * 100)}% عن الفترة السابقة (${money(i.prevCpr)}).`
           : rc3(recent, before, hasCompare, i.type) ;
         out.push({
           level: "bad",
-          title: `Cost per result ${money(unit)}${k}; need ${money(req)}${k} to hit target with the remaining balance`,
-          cause: `${Math.round(remaining).toLocaleString("en-US")} ${label} left in ${p.daysLeft} days with ${money(p.balance!)}. ${trend}`.trim(),
-          action: `Cost must drop ≈ ${cut}% or the target will be missed.`,
+          title: `سعر النتيجة ${money(unit)}${k}؛ المطلوب ${money(req)}${k} لتحقيق الهدف بالرصيد المتبقي`,
+          cause: `المتبقي ${Math.round(remaining).toLocaleString("en-US")} ${label} خلال ${p.daysLeft} يوماً مع رصيد ${money(p.balance!)}. ${trend}`.trim(),
+          action: `يجب أن تنخفض التكلفة بحوالي ${cut}% وإلا لن يتحقق الهدف.`,
         });
       } else {
         out.push({
           level: "warn",
-          title: `Pace ${Math.round(perDayNow).toLocaleString("en-US")} ${label}/day, need ${Math.round(need).toLocaleString("en-US")}`,
-          cause: `${Math.round(remaining).toLocaleString("en-US")} left in ${p.daysLeft} days; cost is fine but daily spend is too low.`,
-          action: "Raise daily spend so the balance is used before the period ends.",
+          title: `الوتيرة ${Math.round(perDayNow).toLocaleString("en-US")} ${label} يومياً، والمطلوب ${Math.round(need).toLocaleString("en-US")}`,
+          cause: `المتبقي ${Math.round(remaining).toLocaleString("en-US")} خلال ${p.daysLeft} يوماً؛ التكلفة جيدة لكن الصرف اليومي منخفض.`,
+          action: "ارفع الصرف اليومي ليُستهلك الرصيد قبل نهاية الفترة.",
         });
       }
     }
@@ -263,16 +265,16 @@ export function diagnose(i: DiagInput): Finding[] {
     const dead = withCpr.filter((x) => x.c === null && x.a.spend / totalSpend >= 0.2);
     if (dead.length) {
       out.push({
-        level: "warn", title: `Ad set with no results uses ${pct((dead[0].a.spend / totalSpend) * 100)}% of spend: ${dead[0].a.name}`,
-        cause: "Spent with no results so far.", action: "Pause it or move its budget to the best ad set.",
+        level: "warn", title: `Ad set بلا نتائج يستهلك ${pct((dead[0].a.spend / totalSpend) * 100)}% من الصرف: ${LTR(dead[0].a.name)}`,
+        cause: "صُرف عليه بلا نتائج حتى الآن.", action: "أوقفه أو انقل ميزانيته إلى أفضل Ad set.",
       });
     }
     const worst = withCpr.filter((x) => x.c !== null).sort((x, y) => y.c! - x.c!)[0];
     if (best && worst && worst.a.name !== best.a.name && worst.c! > best.c! * 1.5 && worst.a.spend / totalSpend >= 0.25) {
       out.push({
         level: "warn",
-        title: `${worst.a.name} costs ${(worst.c! / best.c!).toFixed(1)}× more than ${best.a.name} and uses ${pct((worst.a.spend / totalSpend) * 100)}% of spend`,
-        cause: "Weaker audience or creative.", action: `Move part of its budget to ${best.a.name} or pause it.`,
+        title: `${LTR(worst.a.name)} تكلفته ${(worst.c! / best.c!).toFixed(1)} ضعف ${LTR(best.a.name)} ويستهلك ${pct((worst.a.spend / totalSpend) * 100)}% من الصرف`,
+        cause: "جمهور أو تصميم أضعف.", action: `انقل جزءاً من ميزانيته إلى ${LTR(best.a.name)} أو أوقفه.`,
       });
     }
   }
@@ -282,8 +284,8 @@ export function diagnose(i: DiagInput): Finding[] {
   if (!out.length) {
     out.push({
       level: "ok",
-      title: finished ? `Target reached${p.target ? ` (${Math.round((i.result / p.target) * 100)}%)` : ""} — cost stable` : p.target ? "No issues — on pace" : "No issues in delivery or cost",
-      cause: "", action: finished ? "You can stop it or move its budget to a late campaign." : p.target ? "" : "Set a target to see progress.",
+      title: finished ? `تحقق الهدف${p.target ? ` (${Math.round((i.result / p.target) * 100)}%)` : ""} — التكلفة مستقرة` : p.target ? "لا مشاكل — الوتيرة جيدة" : "لا مشاكل في التسليم أو التكلفة",
+      cause: "", action: finished ? "يمكنك إيقافها أو نقل ميزانيتها إلى حملة متأخرة." : p.target ? "" : "حدّد هدفاً لعرض التقدم.",
     });
   }
   return out.slice(0, 6);

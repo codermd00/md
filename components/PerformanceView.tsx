@@ -2,6 +2,7 @@
 import WatchButton from "./WatchButton";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { writeCid } from "@/lib/cid-client";
 import LineChart, { type Series } from "./LineChart";
 import BreakdownPanel from "./BreakdownPanel";
 import AiPanel from "./AiPanel";
@@ -152,7 +153,7 @@ export default function PerformanceView(props: {
           <div className="sub">{client.periodStart || "—"} → {client.periodEnd || "—"}{periodSel ? " · Archive" : ` · ${money(client.budget)}`}</div>
         </div>
         <div className="pbar">
-          <select value={client.id} onChange={(e) => router.push(`/performance?client=${e.target.value}`)}>
+          <select value={client.id} onChange={(e) => { writeCid(e.target.value); router.push(`/performance?client=${e.target.value}`); }}>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           {periods.length > 0 && (
@@ -273,7 +274,7 @@ export default function PerformanceView(props: {
                     
                     <div className="diag">
                       {picked.findings.map((f, i) => (
-                        <div className={`fnd ${f.level}`} key={i}>
+                        <div className={`fnd ${f.level}`} key={i} dir="rtl">
                           <b>{f.title}</b>
                           {f.cause && <div className="c">{f.cause}</div>}
                           {f.action && <div className="a">← {f.action}</div>}
@@ -286,12 +287,12 @@ export default function PerformanceView(props: {
                     
                     {(() => {
                       const att = campaigns.filter((c) => c.findings.some((f) => f.level !== "ok"));
-                      if (!att.length) return <div className="fnd ok"><b>No issues found</b></div>;
+                      if (!att.length) return <div className="fnd ok" dir="rtl"><b>لا توجد مشاكل</b></div>;
                       return att.map((c) => {
                         const top = c.findings[0];
                         return (
                           <div className="dsum" key={c.id} onClick={() => setSel(c.id)}>
-                            <span><b>{c.name}</b> · {top.title}</span>
+                            <span dir="rtl"><b>{c.name}</b> · {top.title}</span>
                             <span className={`chip sm ${top.level}`}>{c.findings.filter((f) => f.level !== "ok").length}</span>
                           </div>
                         );

@@ -4,6 +4,7 @@ import { addDays, todayStr } from "@/lib/dates";
 import { computeProgress, previousPeriod } from "@/lib/progress";
 import { cprValue } from "@/lib/results";
 import { diagnose } from "@/lib/diagnose";
+import { savedCid } from "@/lib/cid";
 
 export const dynamic = "force-dynamic";
 const MIN_SPEND = 0; // أي صرف > 0 يُحتسب
@@ -27,7 +28,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
   ]);
   const threshold = Number((setRows || [])[0]?.value) || 95;
   const list = clients || [];
-  const client: any = list.find((c: any) => c.id === searchParams.client) || list[0] || null;
+  const client: any = list.find((c: any) => c.id === searchParams.client) || list.find((c: any) => c.id === savedCid()) || list[0] || null;
 
   if (!client) return <PerformanceView clients={[]} client={null} campaigns={[]} adsets={[]} breakdown={[]} daily={[]} today={today} threshold={threshold} />;
 

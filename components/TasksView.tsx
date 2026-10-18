@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
+import { writeCid } from "@/lib/cid-client";
 import { deleteNote, deleteTask, saveNote, saveTask, toggleTask } from "@/app/(app)/tasks/actions";
 
 type Task = { id: string; title: string; priority: "high" | "med" | "low"; status: "pending" | "done"; clientId: string; due: string };
@@ -7,10 +8,10 @@ type Note = { id: string; title: string; body: string; at: string };
 const PRI: Record<string, { label: string; cls: string; ord: number }> = { high: { label: "High", cls: "bad", ord: 0 }, med: { label: "Medium", cls: "warn", ord: 1 }, low: { label: "Low", cls: "mute", ord: 2 } };
 const today = () => new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
 
-export default function TasksView({ clients, tasks, notes }: { clients: { id: string; name: string }[]; tasks: Task[]; notes: Note[] }) {
+export default function TasksView({ clients, tasks, notes, initialClient = "" }: { clients: { id: string; name: string }[]; tasks: Task[]; notes: Note[]; initialClient?: string }) {
   const [q, setQ] = useState("");
   const [flt, setFlt] = useState<"pending" | "done" | "all">("pending");
-  const [client, setClient] = useState("");
+  const [client, setClient] = useState(initialClient);
   const [te, setTe] = useState<Partial<Task> | null>(null);
   const [ne, setNe] = useState<Partial<Note> | null>(null);
   const [msg, setMsg] = useState("");
@@ -34,7 +35,7 @@ export default function TasksView({ clients, tasks, notes }: { clients: { id: st
         <div><div className="h1" style={{ fontSize: 20 }}>Tasks & Notes</div><div className="sub">{left} / {notes.length}</div></div>
         <div className="pbar">
           <input placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 150, padding: "7px 10px", fontSize: 13 }} />
-          <select value={client} onChange={(e) => setClient(e.target.value)}><option value="">All clients</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+          <select value={client} onChange={(e) => { setClient(e.target.value); writeCid(e.target.value); }}><option value="">All clients</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
           <button className="btn pri" onClick={() => setTe({ priority: "med", title: "", clientId: "", due: "" })}>+ Add Task</button>
           <button className="btn" onClick={() => setNe({ title: "", body: "" })}>+ Add Note</button>
         </div>

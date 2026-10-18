@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { writeCid } from "@/lib/cid-client";
 import LineChart, { type Series } from "./LineChart";
 import { GOVERNORATES, UNKNOWN_GOV } from "@/lib/governorates";
 import { deleteOrder, setOrderGovernorate } from "@/app/(app)/crm/actions";
@@ -31,7 +32,7 @@ export default function CrmView(p: {
   const [open, setOpen] = useState(false);
   const [metric, setMetric] = useState<"orders" | "cost" | "spend">("orders");
   const [, start] = useTransition();
-  const go = (client: string, range: string) => router.push(`/crm?client=${client}&range=${range}`);
+  const go = (client: string, range: string) => { writeCid(client); router.push(`/crm?client=${client}&range=${range}`); };
 
   const shown = useMemo(() => p.orders.filter((o) =>
     (!filter || (o.governorate || UNKNOWN_GOV) === filter) && (!q || o.phone.includes(q) || o.address.includes(q))), [p.orders, filter, q]);

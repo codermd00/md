@@ -4,11 +4,12 @@ import { useRouter } from "next/navigation";
 import { addWatch, closeWatch, deleteWatch, listTargets, type Target } from "@/app/(app)/watch/actions";
 import type { WatchRow } from "@/lib/watch";
 import { FLAG_COLOR, FLAG_TEXT, LEVEL } from "./WatchLine";
+import { writeCid } from "@/lib/cid-client";
 
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const LEVELS = [["campaign", "Campaign"], ["adset", "Ad set"], ["ad", "Ad"]] as const;
 
-export default function WatchView({ clients, rows }: { clients: { id: string; name: string }[]; rows: WatchRow[] }) {
+export default function WatchView({ clients, rows, initialClient = "" }: { clients: { id: string; name: string }[]; rows: WatchRow[]; initialClient?: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [adding, setAdding] = useState(false);
@@ -33,7 +34,7 @@ export default function WatchView({ clients, rows }: { clients: { id: string; na
     return () => { alive = false; };
   }, [adding, cid, lvl]);
 
-  const [fc, setFc] = useState("");
+  const [fc, setFc] = useState(initialClient);
   const [sort, setSort] = useState<"status" | "campaign">("status");
   const clientsWith = clients.filter((c) => rows.some((r) => r.clientId === c.id));
   const open = rows.filter((r) => r.status === "open" && (!fc || r.clientId === fc));
@@ -122,7 +123,7 @@ export default function WatchView({ clients, rows }: { clients: { id: string; na
       </div>
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-        <select value={fc} onChange={(e) => setFc(e.target.value)}>
+        <select value={fc} onChange={(e) => { setFc(e.target.value); writeCid(e.target.value); }}>
           <option value="">All clients</option>
           {clientsWith.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>

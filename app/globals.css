@@ -29,6 +29,7 @@ a{color:inherit;text-decoration:none}
 .nav a:hover{background:var(--surface2);color:var(--text)}
 .nav a.on{background:var(--blue-l);color:var(--blue2);font-weight:700}
 .nav svg,.side-foot svg{width:18px;height:18px;flex:none}
+.side-sel{padding:0 0 10px}.side-sel select{width:100%}
 .side-foot{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--border);padding-top:12px}
 .side-foot button{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r2);border:0;background:none;color:var(--t2);font:inherit;cursor:pointer;text-align:left}
 .side-foot button:hover{background:var(--surface2);color:var(--text)}
@@ -195,7 +196,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
   html{-webkit-text-size-adjust:100%}
   body{font-size:14px;overscroll-behavior-y:none}
   .sidebar{display:contents}
-  .sidebar>.brand,.sidebar>.nav,.sidebar>.side-foot{display:none}
+  .sidebar>.brand,.sidebar>.nav,.sidebar>.side-foot,.sidebar>.side-sel{display:none}
   .main{padding:14px 14px calc(88px + env(safe-area-inset-bottom));margin-left:0}
 
   /* bottom tab bar */

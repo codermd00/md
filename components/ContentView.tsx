@@ -1,4 +1,5 @@
 "use client";
+import { writeCid } from "@/lib/cid-client";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import WatchButton from "./WatchButton";
@@ -19,10 +20,10 @@ const ST: Record<string, { label: string; cls: string }> = {
 const TYPE: Record<string, string> = { IMAGE: "Image", VIDEO: "Video", CAROUSEL_ALBUM: "Carousel" };
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
-export default function ContentView({ clients, posts }: { clients: { id: string; name: string; hasIg: boolean; watch: boolean }[]; posts: PostCard[] }) {
+export default function ContentView({ clients, posts, initialClient = "" }: { initialClient?: string; clients: { id: string; name: string; hasIg: boolean; watch: boolean }[]; posts: PostCard[] }) {
   const router = useRouter();
   const [tab, setTab] = useState<(typeof TABS)[number][0]>("all");
-  const [client, setClient] = useState("");
+  const [client, setClient] = useState(initialClient);
   const [q, setQ] = useState("");
   const [n, setN] = useState("5");
   const [sel, setSel] = useState<PostCard | null>(null);
@@ -41,7 +42,7 @@ export default function ContentView({ clients, posts }: { clients: { id: string;
       <div className="topbar" style={{ marginBottom: 14 }}>
         <div><div className="h1" style={{ fontSize: 20 }}>Content Manager</div></div>
         <div className="pbar">
-          <select value={client} onChange={(e) => setClient(e.target.value)}>
+          <select value={client} onChange={(e) => { setClient(e.target.value); writeCid(e.target.value); }}>
             <option value="">All clients</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>

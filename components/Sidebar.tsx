@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { writeCid } from "@/lib/cid-client";
 
 const I = (d: string) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
@@ -22,13 +23,41 @@ const ITEMS = [
 const TAB_HREFS = ["/overview", "/performance", "/watch", "/content", "/crm"];
 const TAB_LABEL: Record<string, string> = { "/overview": "Overview", "/clients": "Clients", "/performance": "Perf", "/watch": "Watch", "/content": "Content", "/crm": "CRM" };
 
-export default function Sidebar() {
+export default function Sidebar({ clients, initialClient }: { clients: { id: string; name: string }[]; initialClient: string }) {
   const path = usePathname();
   const router = useRouter();
   const [more, setMore] = useState(false);
+  const [cid, setCid] = useState(initialClient);
+  useEffect(() => {
+    const on = (e: Event) => setCid(String((e as CustomEvent).detail || ""));
+    window.addEventListener("cid-change", on);
+    return () => window.removeEventListener("cid-change", on);
+  }, []);
+  // opening a page with ?client= (for example from Overview) becomes the selected client
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("client");
+    if (q && clients.some((c) => c.id === q)) { setCid(q); writeCid(q); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path]);
   useEffect(() => setMore(false), [path]);
   const moreItems = ITEMS.filter((x) => !TAB_HREFS.includes(x.href));
   const moreOn = moreItems.some((x) => path.startsWith(x.href));
+
+  function pick(id: string) {
+    setCid(id); writeCid(id);
+    if (path.startsWith("/performance") || path.startsWith("/crm")) {
+      const sp = new URLSearchParams(window.location.search);
+      if (id) sp.set("client", id); else sp.delete("client");
+      sp.delete("period");
+      router.replace(path + (sp.toString() ? "?" + sp.toString() : ""));
+    } else router.refresh();
+  }
+  const picker = (
+    <select value={cid} onChange={(e) => pick(e.target.value)}>
+      <option value="">All clients</option>
+      {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+    </select>
+  );
 
   function toggleTheme() {
     const dark = document.documentElement.getAttribute("data-theme") === "dark";
@@ -52,6 +81,7 @@ export default function Sidebar() {
           </Link>
         ))}
       </nav>
+      <div className="side-sel">{picker}</div>
       <div className="side-foot">
         <button onClick={toggleTheme}>{I("M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z")} Light / Dark</button>
         <button onClick={logout}>{I("M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9")} Logout</button>
@@ -65,6 +95,7 @@ export default function Sidebar() {
       {more && (
         <div className="sheet-bg" onClick={() => setMore(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="side-sel">{picker}</div>
             {moreItems.map((it) => <Link key={it.href} href={it.href} className={path.startsWith(it.href) ? "on" : ""}>{I(it.icon)} {it.label}</Link>)}
             <button onClick={toggleTheme}>{I("M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z")} Light / Dark</button>
             <button onClick={logout}>{I("M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9")} Logout</button>
