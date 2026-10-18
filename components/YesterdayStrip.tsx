@@ -3,11 +3,11 @@ import Link from "next/link";
 import { useState } from "react";
 
 export type YCamp = { name: string; type: string; spend: number; results: number; cost: string; delta: number | null; stopped: boolean; over: boolean; limit: string | null };
-export type YClient = { id: string; name: string; spend: number; flag: "stop" | "worse" | "over" | "better" | "same"; campaigns: YCamp[] };
+export type YClient = { id: string; name: string; spend: number; flag: "stop" | "worse" | "over" | "better" | "same" | "idle"; campaigns: YCamp[] };
 
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
-const ICON = { stop: "⚠", worse: "▲", over: "▲", better: "▼", same: "●" } as const;
-const COLOR = { stop: "var(--red)", worse: "var(--red)", over: "var(--orange)", better: "var(--green)", same: "var(--t3)" } as const;
+const ICON = { stop: "⚠", worse: "▲", over: "▲", better: "▼", same: "●", idle: "●" } as const;
+const COLOR = { stop: "var(--red)", worse: "var(--red)", over: "var(--orange)", better: "var(--green)", same: "var(--t3)", idle: "var(--t3)" } as const;
 const UNIT: Record<string, string> = { Messages: "messages", Reach: "reached", Visit: "visits", Engagement: "engagements", Other: "results" };
 
 export default function YesterdayStrip({ label, clients }: { label: string; clients: YClient[] }) {
@@ -21,7 +21,7 @@ export default function YesterdayStrip({ label, clients }: { label: string; clie
           <button key={c.id} className={`ychip ${c.flag}`} onClick={() => setOpen(c)}>
             <span style={{ color: COLOR[c.flag] }}>{ICON[c.flag]}</span>
             <b>{c.name}</b>
-            <span className="yamt">{c.flag === "stop" && c.spend === 0 ? "No spend" : money(c.spend)}</span>
+            <span className="yamt">{c.spend === 0 ? "No spend" : money(c.spend)}</span>
           </button>
         ))}
       </div>
@@ -37,7 +37,7 @@ export default function YesterdayStrip({ label, clients }: { label: string; clie
                   <div className="sub" style={{ margin: 0 }}>{k.type}</div>
                 </span>
                 <span style={{ textAlign: "right" }}>
-                  {k.stopped && k.spend <= 0 ? <b style={{ color: "var(--red)" }}>⚠ No spend</b> : (
+                  {k.stopped && k.spend <= 0 ? <b style={{ color: "var(--t3)" }}>No spend</b> : (
                     <>
                       {k.stopped && <b style={{ color: "var(--red)" }}>⚠ Low · </b>}<b>{money(k.spend)}</b> · {Math.round(k.results).toLocaleString("en-US")} {UNIT[k.type] || "results"}
                       <div className="sub" style={{ margin: 0 }}>

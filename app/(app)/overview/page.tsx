@@ -107,7 +107,7 @@ export default async function OverviewPage() {
       const lim = Number(c.alert_limits?.[k.type]) || 0;
       const delta = cost === null ? null : lim > 0 ? (cost / lim - 1) * 100 : prev ? (cost / prev - 1) * 100 : null;
       const isOver = !stopped && cost !== null && lim > 0 && cost > lim;
-      if (stopped) stop = true;
+      if (stopped) { if (ys > 0) stop = true; }   // spending almost nothing is a warning; no spend at all is just stopped (grey)
       else if (lim > 0) { if (isOver) { if (delta !== null && delta > 10) worse = true; else over = true; } else if (delta !== null && delta < -10) better = true; }
       else if (delta !== null && delta > 10) worse = true; else if (delta !== null && delta < -10) better = true;
       spendTotal += ys;
@@ -119,13 +119,13 @@ export default async function OverviewPage() {
     }
     const running = !c.period_start || !c.period_end || (c.period_start <= yDay && c.period_end >= yDay);
     if (camps2.length === 0) {
-      if (running && c.account_status === "active") yClients.push({ id: c.id, name: c.name, spend: 0, flag: "stop", campaigns: [] });
+      if (running && c.account_status === "active") yClients.push({ id: c.id, name: c.name, spend: 0, flag: "idle", campaigns: [] });
       continue;
     }
     camps2.sort((a, b) => b.spend - a.spend);
-    yClients.push({ id: c.id, name: c.name, spend: spendTotal, flag: stop ? "stop" : worse ? "worse" : over ? "over" : better ? "better" : "same", campaigns: camps2 });
+    yClients.push({ id: c.id, name: c.name, spend: spendTotal, flag: stop ? "stop" : worse ? "worse" : over ? "over" : better ? "better" : spendTotal <= 0 ? "idle" : "same", campaigns: camps2 });
   }
-  const yRank = { stop: 0, worse: 1, over: 2, same: 3, better: 4 } as const;
+  const yRank = { stop: 0, worse: 1, over: 2, same: 3, better: 4, idle: 5 } as const;
   yClients.sort((a, b) => yRank[a.flag] - yRank[b.flag] || b.spend - a.spend);
   const yLabel = new Date(yDay + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
