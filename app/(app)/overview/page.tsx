@@ -6,6 +6,7 @@ import { fetchAll } from "@/lib/fetchall";
 import { TYPE_LABEL, cprValue } from "@/lib/results";
 import YesterdayStrip, { type YClient } from "@/components/YesterdayStrip";
 import DataHealth from "@/components/DataHealth";
+import SeenButton from "@/components/SeenButton";
 import WatchLine from "@/components/WatchLine";
 import { loadWatch, type WatchRow } from "@/lib/watch";
 import { addQuickNote } from "./actions";
@@ -30,7 +31,7 @@ const ago = (iso: string | null) => {
   return m < 1 ? "Now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
 };
 
-type Item = { level: "bad" | "warn"; client: string; clientId: string; text: string };
+type Item = { level: "bad" | "warn"; client: string; clientId: string; text: string; seen?: { campaignId: string; periodStart: string; spend: number } };
 
 export default async function OverviewPage() {
   const sb = createServerSupabase();
@@ -56,6 +57,8 @@ export default async function OverviewPage() {
   const { data: yRows } = await sb.from("insights_daily").select("entity_id,client_id,day,spend,results").eq("level", "campaign")
     .gte("day", addDays(today, -4)).lte("day", yDay);
   const cs: any[] = camps || [];
+  const { data: seenRows } = await sb.from("attention_seen").select("campaign_id,period_start,spend_at_seen");
+  const seenMap = new Map<string, any>(((seenRows as any[]) || []).map((x) => [x.campaign_id, x]));
   const nameOf = new Map(cl.map((c) => [c.id, c.name]));
 
   const campIds = cs.map((k) => k.id);
@@ -67,7 +70,7 @@ export default async function OverviewPage() {
     : [[], []];
 
   // ---- تقدم كل حملة لها هدف ----
-  const risky: { client: any; camp: any; p: ReturnType<typeof computeProgress> }[] = [];
+  const risky: { client: any; camp: any; p: ReturnType<typeof computeProgress>; spend: number }[] = [];
   const endingSoon: Item[] = [];
   for (const c of cl) {
     for (const k of cs.filter((x) => x.client_id === c.id)) {
@@ -79,7 +82,7 @@ export default async function OverviewPage() {
         result: r ? Number(r.results) : 0, spend: r ? Number(r.spend) : 0,
         goalTarget: g.target != null ? Number(g.target) : null, goalBudget: g.budget != null ? Number(g.budget) : null, threshold,
       });
-      if (p.status === "late" || p.status === "missed") risky.push({ client: c, camp: k, p });
+      if (p.status === "late" || p.status === "missed") risky.push({ client: c, camp: k, p, spend: r ? Number(r.spend) : 0 });
     }
   }
 
@@ -137,7 +140,11 @@ export default async function OverviewPage() {
   const items: Item[] = [];
   for (const c of disabled) items.push({ level: "bad", client: c.name, clientId: c.id, text: ACCOUNT_HINT[String(c.account_status)] || `Account status: ${c.account_status}` });
   for (const x of risky) {
+    // marked as seen: stay hidden until the campaign's spend changes (or the period changes)
+    const sn = seenMap.get(x.camp.id);
+    if (sn && sn.period_start === x.client.period_start && x.spend <= Number(sn.spend_at_seen) + 0.005) continue;
     items.push({
+      seen: { campaignId: x.camp.id, periodStart: x.client.period_start, spend: x.spend },
       level: "bad", client: x.client.name, clientId: x.client.id,
       text: `${x.camp.name} (${TYPE_LABEL[x.camp.type as keyof typeof TYPE_LABEL]}) ${x.p.status === "missed" ? "missed" : "late"}: ${Math.round(x.p.pct || 0)}% of target`,
     });
@@ -203,7 +210,7 @@ export default async function OverviewPage() {
                   {items.slice(0, 12).map((it, i) => (
                     <div className={`fnd ${it.level}`} key={i}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                        {link(it)}<span className={`chip sm ${it.level === "bad" ? "bad" : "warn"}`}>{it.level === "bad" ? "critical" : "warning"}</span>
+                        {link(it)}<span style={{ display: "flex", gap: 6, alignItems: "center" }}><span className={`chip sm ${it.level === "bad" ? "bad" : "warn"}`}>{it.level === "bad" ? "critical" : "warning"}</span>{it.seen && <SeenButton {...it.seen} />}</span>
                       </div>
                       <div className="c" dir="auto">{it.text}</div>
                     </div>

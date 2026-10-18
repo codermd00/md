@@ -22,7 +22,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
   const sb = createServerSupabase();
   const today = todayStr();
   const [{ data: clients }, { data: setRows }] = await Promise.all([
-    sb.from("clients").select("id,name,period_start,period_end,budget,ig_username").order("name"),
+    sb.from("clients").select("id,name,period_start,period_end,budget,ig_username,alert_limits").order("name"),
     sb.from("settings").select("key,value").eq("key", "late_threshold"),
   ]);
   const threshold = Number((setRows || [])[0]?.value) || 95;
@@ -92,7 +92,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       const findings = diagnose({
         type: k.type, effectiveStatus: k.effective_status || k.status || "", spend, result,
         cpr: cprNow, prevCpr: prevCprV, frequency: cur?.frequency != null ? Number(cur.frequency) : null,
-        progress, goalBudget: g?.budget != null ? Number(g.budget) : null,
+        progress, goalBudget: g?.budget != null ? Number(g.budget) : null, costLimit: Number((client as any).alert_limits?.[k.type]) || null,
         daily: own, adsets: adsets.filter((a) => a.campaignId === k.id).map((a) => ({ name: a.name, effectiveStatus: a.effectiveStatus, spend: a.spend, results: a.results })),
         periodStart: vStart, periodEnd: vEnd, today: vToday,
       });

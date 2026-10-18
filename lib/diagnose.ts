@@ -15,6 +15,7 @@ export type DiagInput = {
   frequency: number | null;
   progress: Progress;
   goalBudget: number | null;
+  costLimit?: number | null;                         // حد التكلفة للعميل لهذا النوع (بصيغة النوع)
   daily: DailyPoint[];                               // مرتبة بالتاريخ
   adsets: AdSetPoint[];
   periodStart: string | null; periodEnd: string | null; today: string;
@@ -79,16 +80,25 @@ export function diagnose(i: DiagInput): Finding[] {
     });
   }
 
-  // 2) مشكلة الصرف (التسليم أقل من المخطط)
+  // 2) الصرف: متأخر عن الخطة، أم مصروف لكن النتيجة متأخرة (الهدف عالٍ أو السعر عالٍ)
+  const d2 = (n: number) => "$" + n.toFixed(2);
   if (i.goalBudget && p.total > 0 && p.elapsed >= 2 && i.effectiveStatus === "ACTIVE") {
     const planned = (i.goalBudget * Math.min(p.elapsed, p.total)) / p.total;
-    if (planned > 0 && i.spend < planned * 0.85) {
+    // Behind on spend matters only when results are not on track (a lower price can make up the missing spend)
+    const resultsOk = !!p.target && (p.status === "on_track" || p.status === "achieved");
+    if (planned > 0 && i.spend < planned * 0.85 && !resultsOk) {
       const share = (i.spend / planned) * 100;
+      const missing = planned - i.spend;
+      const planDaily = i.goalBudget / p.total;
+      const left = Math.max(0, i.goalBudget - i.spend);
+      const needDaily = p.daysLeft && p.daysLeft > 0 ? left / p.daysLeft : null;
       out.push({
         level: share < 60 ? "bad" : "warn",
-        title: `Spend is ${pct(share)}% of plan to date (${money(i.spend)} of ${money(planned)})`,
-        cause: "Low ad set budgets, narrow audience, limited learning, or low bids.",
-        action: "Raise budgets on the best ad sets or widen the audience.",
+        title: `Spend is behind plan by ${d2(missing)} (${d2(i.spend)} of ${d2(planned)} planned to date)`,
+        cause: `Plan is ${d2(planDaily)} per day, and the budget was not spent at that rate.`,
+        action: needDaily !== null
+          ? `Spend ${d2(needDaily)} per day (${needDaily >= planDaily ? "+" : "-"}${d2(Math.abs(needDaily - planDaily))}) for the ${p.daysLeft} days left, or add a catch-up campaign of ${d2(missing)}.`
+          : `Add a catch-up campaign of ${d2(missing)}, or accept the shortfall.`,
       });
     } else if (i.goalBudget && i.spend > i.goalBudget) {
       out.push({
@@ -96,6 +106,41 @@ export function diagnose(i: DiagInput): Finding[] {
         cause: "Ad set budgets are higher than the budget set here.",
         action: "Lower ad set budgets or update the campaign budget in Edit.",
       });
+    }
+    // Spend is on plan but results are late: either the target is too high for the budget, or the price is too high
+    if (planned > 0 && i.spend >= planned * 0.85 && p.target && (p.status === "late" || p.status === "missed") && i.cpr !== null && i.type !== "other") {
+      const k = i.type === "reach" ? 1000 : 1;
+      const unit = i.type === "reach" ? " per 1000" : "";
+      const req = (i.goalBudget / p.target) * k;             // cost that hits the target with the full budget
+      if (i.cpr > req * 1.02) {
+        const reach = ((i.goalBudget / i.cpr) * k / p.target) * 100;
+        const budgetNeeded = (p.target / k) * i.cpr;
+        const targetFit = (i.goalBudget / i.cpr) * k;
+        const priceHigh = i.costLimit && i.costLimit > 0 ? i.cpr > i.costLimit : i.prevCpr ? i.cpr > i.prevCpr * 1.1 : null;
+        const nf = (n: number) => Math.round(n).toLocaleString("en-US");
+        if (priceHigh === true) {
+          out.push({
+            level: "bad",
+            title: `Spend is on plan but results are late: price is high (${money(i.cpr)}${unit}${i.costLimit ? `, limit ${money(i.costLimit)}` : ""})`,
+            cause: `At this price the ${money(i.goalBudget)} budget reaches about ${pct(reach)}% of the target; the target needs ${money(req)}${unit}.`,
+            action: "Lower the cost (ads, audience, placements) to reach the target.",
+          });
+        } else if (priceHigh === false) {
+          out.push({
+            level: "bad",
+            title: "Spend is on plan but results are late: target is too high for the budget",
+            cause: `Price is normal (${money(i.cpr)}${unit}), but the target needs ${money(req)}${unit} with the ${money(i.goalBudget)} budget.`,
+            action: `Raise the budget to about ${money(budgetNeeded)}, or lower the target to about ${nf(targetFit)}.`,
+          });
+        } else {
+          out.push({
+            level: "bad",
+            title: "Spend is on plan but results are late: target is too high for the budget, or the price is high",
+            cause: `The target needs ${money(req)}${unit} with the ${money(i.goalBudget)} budget; the current price is ${money(i.cpr)}${unit}.`,
+            action: `Raise the budget to about ${money(budgetNeeded)}, lower the target to about ${nf(targetFit)}, or reduce the cost.`,
+          });
+        }
+      }
     }
   }
 

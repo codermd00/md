@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { addDays, todayStr } from "./dates";
 import { computeProgress, previousPeriod } from "./progress";
 import { cprValue, TYPE_LABEL, type CampaignType } from "./results";
+import { liveBreakdown } from "./ai-live";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -80,8 +81,18 @@ export async function buildContext(sb: SupabaseClient, clientId: string, periodS
     };
   }).filter(Boolean);
 
+  // Live day-by-day numbers per ad set / ad (only the campaigns that spent); never saved
+  let liveDaily: any = null;
+  if (from && c.ad_account_id) {
+    const spent = new Set((campaigns as any[]).map((x) => x.name));
+    const list = (camps || []).filter((k: any) => spent.has(k.name)).map((k: any) => ({ meta_id: String(k.meta_id), name: k.name as string, type: k.type as CampaignType }));
+    if (list.length) {
+      try { liveDaily = await liveBreakdown(c.ad_account_id, { from, to: now }, prev, list); } catch { liveDaily = null; }
+    }
+  }
+
   return JSON.stringify({
     client: c.name, currency: c.currency || "USD", today: now, period: { from, to }, periodBudget: Number(c.budget) || null,
-    alertLimits: c.alert_limits || null, campaigns,
+    alertLimits: c.alert_limits || null, campaigns, liveDaily,
   });
 }
