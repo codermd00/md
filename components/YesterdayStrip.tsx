@@ -43,8 +43,9 @@ export default function YesterdayStrip({ label, clients }: { label: string; clie
                       <div className="sub" style={{ margin: 0 }}>
                         {k.cost}
                         {k.over && k.limit && <b style={{ marginLeft: 6, color: "var(--orange)" }}>over {k.limit}</b>}
+                        {k.limit && !k.over && <span style={{ marginLeft: 6 }}>limit {k.limit}</span>}
                         {k.delta !== null && Math.abs(k.delta) >= 1 && (
-                          <b style={{ marginLeft: 6, color: k.delta > 0 ? "var(--red)" : k.over ? "var(--orange)" : "var(--green)" }}>{k.delta > 0 ? "▲" : "▼"} {Math.abs(Math.round(k.delta))}%</b>
+                          <b style={{ marginLeft: 6, color: k.delta > 0 ? (k.limit && k.delta <= 10 ? "var(--orange)" : "var(--red)") : k.over ? "var(--orange)" : "var(--green)" }}>{k.delta > 0 ? "▲" : "▼"} {Math.abs(Math.round(k.delta))}%</b>
                         )}
                       </div>
                     </>

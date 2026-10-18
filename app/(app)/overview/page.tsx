@@ -101,12 +101,15 @@ export default async function OverviewPage() {
       const active = k.effective_status === "ACTIVE";
       if (ys <= 0 && !(active && ps > 0)) continue;           // paused / finished campaigns stay hidden
       const cost = cprValue(k.type, ys, yr), prev = cprValue(k.type, ps, pr);
-      const delta = cost !== null && prev ? (cost / prev - 1) * 100 : null;
       const stopped = active && ys < MIN_RUNNING;
-      // Cost above the client's limit for this campaign type (set in the client file) is never "good", even when it improved
+      // With a cost limit (set in the client file) the change is measured against that limit, not the previous days:
+      // under the limit is fine whatever the daily price swings. Without a limit it falls back to the previous 3 days.
       const lim = Number(c.alert_limits?.[k.type]) || 0;
+      const delta = cost === null ? null : lim > 0 ? (cost / lim - 1) * 100 : prev ? (cost / prev - 1) * 100 : null;
       const isOver = !stopped && cost !== null && lim > 0 && cost > lim;
-      if (stopped) stop = true; else if (delta !== null && delta > 10) worse = true; else if (isOver) over = true; else if (delta !== null && delta < -10) better = true;
+      if (stopped) stop = true;
+      else if (lim > 0) { if (isOver) { if (delta !== null && delta > 10) worse = true; else over = true; } else if (delta !== null && delta < -10) better = true; }
+      else if (delta !== null && delta > 10) worse = true; else if (delta !== null && delta < -10) better = true;
       spendTotal += ys;
       camps2.push({
         name: k.name, type: TYPE_LABEL[k.type as keyof typeof TYPE_LABEL], spend: ys, results: yr, stopped, delta, over: isOver,
