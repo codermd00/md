@@ -87,8 +87,13 @@ export async function syncClient(clientId: string): Promise<{ ok: boolean; detai
     }
     const typeOf = (id: string): CampaignType => {
       const m = typeVotes.get(id);
-      if (!m) return "other";
-      return [...m.entries()].filter(([t]) => t !== "other").sort((a, b) => b[1] - a[1])[0]?.[0] || "other";
+      const byGoal = m ? [...m.entries()].filter(([t]) => t !== "other").sort((a, b) => b[1] - a[1])[0]?.[0] : undefined;
+      if (byGoal) return byGoal;
+      // goal not recognised: fall back to the campaign objective (lead-generation / video-views campaigns)
+      const obj = String(campMap.get(id)?.objective || "").toUpperCase();
+      if (obj === "OUTCOME_LEADS" || obj === "LEAD_GENERATION") return "leads";
+      if (obj === "VIDEO_VIEWS") return "thruplay";
+      return "other";
     };
 
     const nowIso = new Date().toISOString();
