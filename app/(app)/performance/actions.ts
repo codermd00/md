@@ -31,7 +31,7 @@ export type RangeStat = { id: string; spend: number; results: number; impression
 export type RangeRow = { entityId: string; dimension: string; key: string; spend: number; impressions: number; clicks: number; reach: number; results: number; leads: number; follows: number };
 export type RangeResult = { ok: boolean; message: string; stats: RangeStat[]; rows: RangeRow[] };
 
-const RANGE_FIELDS = "spend,impressions,clicks,reach,actions,instagram_profile_visits";
+const RANGE_FIELDS = "spend,impressions,clicks,reach,actions,instagram_profile_visits,video_thruplay_watched_actions";
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Temporary, live numbers from Meta for one campaign / ad set over a custom day range. Nothing is saved. */

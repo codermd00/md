@@ -4,7 +4,7 @@ import { syncClient } from "./sync";
 import { todayStr } from "./dates";
 
 const TZ = process.env.APP_TIMEZONE || "Asia/Baghdad";
-const LABEL: Record<string, string> = { messages: "Messages", engagement: "Engagement", reach: "Reach", visit: "Visit" };
+const LABEL: Record<string, string> = { messages: "Messages", engagement: "Engagement", reach: "Reach", visit: "Visit", leads: "Leads", thruplay: "ThruPlay" };
 
 function nowHM(): string {
   return new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());

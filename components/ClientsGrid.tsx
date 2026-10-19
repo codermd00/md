@@ -7,11 +7,11 @@ export type ClientCard = {
   id: string; name: string; ig_username: string | null; ad_account_id: string;
   period_start: string | null; period_end: string | null; budget: number;
   business_type: string | null; city: string | null; page_id: string | null; ig_user_id: string | null; run_posts: boolean;
-  alert_messages: string; alert_engagement: string; alert_reach: string; alert_visit: string;
+  alert_messages: string; alert_engagement: string; alert_reach: string; alert_visit: string; alert_leads: string; alert_thruplay: string;
   account_status: string | null; spend: number; daysLeft: number | null; synced_at: string | null;
 };
 
-const EMPTY: ClientInput = { name: "", ig_username: "", ad_account_id: "", period_start: "", period_end: "", budget: "", business_type: "", city: "", page_id: "", ig_user_id: "", run_posts: false, alert_messages: "", alert_engagement: "", alert_reach: "", alert_visit: "" };
+const EMPTY: ClientInput = { name: "", ig_username: "", ad_account_id: "", period_start: "", period_end: "", budget: "", business_type: "", city: "", page_id: "", ig_user_id: "", run_posts: false, alert_messages: "", alert_engagement: "", alert_reach: "", alert_visit: "", alert_leads: "", alert_thruplay: "" };
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 function statusOf(c: ClientCard): { key: string; label: string; cls: string } {
@@ -53,7 +53,7 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
       period_start: c.period_start || "", period_end: c.period_end || "", budget: String(c.budget || ""),
       business_type: c.business_type || "", city: c.city || "",
       page_id: c.page_id || "", ig_user_id: c.ig_user_id || "", run_posts: c.run_posts,
-      alert_messages: c.alert_messages, alert_engagement: c.alert_engagement, alert_reach: c.alert_reach, alert_visit: c.alert_visit,
+      alert_messages: c.alert_messages, alert_engagement: c.alert_engagement, alert_reach: c.alert_reach, alert_visit: c.alert_visit, alert_leads: c.alert_leads, alert_thruplay: c.alert_thruplay,
     });
   }
   function remove(c: ClientCard) {
@@ -157,6 +157,8 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
               <label className="f">Engagement<input type="number" step="any" value={form.alert_engagement} onChange={(e) => set("alert_engagement", e.target.value)} /></label>
               <label className="f">Reach (per 1,000)<input type="number" step="any" value={form.alert_reach} onChange={(e) => set("alert_reach", e.target.value)} /></label>
               <label className="f">Visit<input type="number" step="any" value={form.alert_visit} onChange={(e) => set("alert_visit", e.target.value)} /></label>
+              <label className="f">Leads<input type="number" step="any" value={form.alert_leads} onChange={(e) => set("alert_leads", e.target.value)} /></label>
+              <label className="f">ThruPlay<input type="number" step="any" value={form.alert_thruplay} onChange={(e) => set("alert_thruplay", e.target.value)} /></label>
               <label className="f">Type<input value={form.business_type} onChange={(e) => set("business_type", e.target.value)} /></label>
               <label className="f">City<input value={form.city} onChange={(e) => set("city", e.target.value)} /></label>
             </div>

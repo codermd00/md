@@ -15,7 +15,7 @@ export type ClientInput = {
   id?: string; name: string; ig_username: string; ad_account_id: string;
   period_start: string; period_end: string; budget: string; business_type: string; city: string;
   page_id: string; ig_user_id: string; run_posts: boolean;
-  alert_messages: string; alert_engagement: string; alert_reach: string; alert_visit: string;
+  alert_messages: string; alert_engagement: string; alert_reach: string; alert_visit: string; alert_leads: string; alert_thruplay: string;
 };
 
 export async function saveClient(input: ClientInput): Promise<{ ok: boolean; message: string }> {
@@ -39,7 +39,7 @@ export async function saveClient(input: ClientInput): Promise<{ ok: boolean; mes
   const row = {
     page_id: pageId || null, ig_user_id: igId || null, run_posts: !!input.run_posts,
     alert_limits: Object.fromEntries(
-      (["messages", "engagement", "reach", "visit"] as const)
+      (["messages", "engagement", "reach", "visit", "leads", "thruplay"] as const)
         .map((t) => [t, Number((input as any)["alert_" + t])] as const).filter(([, v]) => v > 0)
     ),
     name, ad_account_id: acc,

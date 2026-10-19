@@ -39,7 +39,7 @@ const pct = (n: number) => Math.round(n);
 // Arabic text is shown right-to-left: isolate numbers and names so "$0.02" and English names keep their order
 const LTR = (t: string) => "\u2066" + t + "\u2069";
 const money = (n: number) => LTR("$" + (n < 0.01 ? n.toFixed(4) : n < 1 ? n.toFixed(3) : n.toFixed(2)));
-const TYPE_AR: Record<CampaignType, string> = { messages: "رسائل", reach: "وصول", visit: "زيارات", engagement: "تفاعلات", other: "نتائج" };
+const TYPE_AR: Record<CampaignType, string> = { messages: "رسائل", reach: "وصول", visit: "زيارات", engagement: "تفاعلات", leads: "عملاء محتملون", thruplay: "مشاهدات ThruPlay", other: "نتائج" };
 
 function rc3(recent: Agg, before: Agg, ok: boolean, type: CampaignType): string {
   if (!ok) return "";

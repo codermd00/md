@@ -1,4 +1,4 @@
-export type CampaignType = "messages" | "reach" | "visit" | "engagement" | "other";
+export type CampaignType = "messages" | "reach" | "visit" | "engagement" | "leads" | "thruplay" | "other";
 
 /** نوع الحملة يُكتشف من optimization_goal للمجموعات — لا من الاسم */
 export function typeFromGoal(goal?: string | null): CampaignType {
@@ -6,11 +6,13 @@ export function typeFromGoal(goal?: string | null): CampaignType {
   if (g === "CONVERSATIONS" || g === "MESSAGING_PURCHASE_CONVERSION" || g === "MESSAGING_APPOINTMENT_CONVERSION") return "messages";
   if (g === "REACH" || g === "IMPRESSIONS" || g === "AD_RECALL_LIFT") return "reach";
   if (g === "VISIT_INSTAGRAM_PROFILE" || g === "PROFILE_VISIT" || g === "INSTAGRAM_PROFILE_VISIT") return "visit";
+  if (g === "LEAD_GENERATION" || g === "QUALITY_LEAD" || g === "QUALITY_CALL") return "leads";
+  if (g === "THRUPLAY" || g === "VIDEO_VIEWS") return "thruplay";
   if (g === "POST_ENGAGEMENT" || g === "ENGAGED_USERS" || g === "PAGE_LIKES") return "engagement";
   return "other";
 }
 
-type Row = { actions?: { action_type: string; value: string }[]; reach?: string; instagram_profile_visits?: string; instagram_profile_follow?: string };
+type Row = { actions?: { action_type: string; value: string }[]; reach?: string; instagram_profile_visits?: string; instagram_profile_follow?: string; video_thruplay_watched_actions?: { action_type: string; value: string }[] };
 
 const pick = (row: Row, types: string[]) => {
   for (const t of types) {
@@ -39,13 +41,17 @@ export function resultFor(type: CampaignType, row: Row): number {
     }
     case "engagement":
       return pick(row, ["post_engagement"]);
+    case "leads":
+      return leadsOf(row);
+    case "thruplay":
+      return Number(row.video_thruplay_watched_actions?.[0]?.value) || 0;
     default:
       return 0;
   }
 }
 
 export const TYPE_LABEL: Record<CampaignType, string> = {
-  messages: "Messages", reach: "Reach", visit: "Visit", engagement: "Engagement", other: "Other",
+  messages: "Messages", reach: "Reach", visit: "Visit", engagement: "Engagement", leads: "Leads", thruplay: "ThruPlay", other: "Other",
 };
 
 /** تكلفة النتيجة بصيغة Ads Manager: Reach لكل 1000 شخص، والباقي لكل نتيجة (3 خانات إذا أقل من 0.01) */

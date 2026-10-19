@@ -14,7 +14,7 @@ const ACCOUNT_STATUS: Record<number, string> = {
 
 type Client = { id: string; name: string; ad_account_id: string; period_start: string | null; period_end: string | null; ig_user_id: string | null; run_posts: boolean };
 
-const INSIGHT_FIELDS = "campaign_id,spend,impressions,clicks,reach,frequency,actions,instagram_profile_visits";
+const INSIGHT_FIELDS = "campaign_id,spend,impressions,clicks,reach,frequency,actions,instagram_profile_visits,video_thruplay_watched_actions";
 const FINAL_AFTER_DAYS = 7; // بعد انتهاء الفترة بأسبوع تُعتبر أرقامها نهائية (نافذة إسناد 7 أيام) ولا تُجلب ثانيةً
 
 /**

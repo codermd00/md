@@ -6,7 +6,7 @@ import { addDays, diffDays } from "./dates";
 export type WatchLevel = "campaign" | "adset" | "ad";
 export type WatchFlag = "stop" | "worse" | "over" | "better" | "same" | "new";
 
-const FIELDS = "spend,impressions,reach,actions,instagram_profile_visits";
+const FIELDS = "spend,impressions,reach,actions,instagram_profile_visits,video_thruplay_watched_actions";
 
 /** Live totals from Meta for one entity over a day range (inclusive). */
 export async function liveTotals(act: string, level: WatchLevel, metaId: string, since: string, until: string, type: CampaignType) {

@@ -2,7 +2,7 @@
 import { graphAll } from "./meta";
 import { cprValue, resultFor, type CampaignType } from "./results";
 
-const FIELDS = "spend,reach,actions,instagram_profile_visits";
+const FIELDS = "spend,reach,actions,instagram_profile_visits,video_thruplay_watched_actions";
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 

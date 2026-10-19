@@ -18,7 +18,7 @@ export const SPEC: Record<Dimension, { breakdowns: string; key: (r: any) => stri
 };
 
 const FIELDS = "campaign_id,spend,impressions,clicks,reach,actions";
-const FIELDS_VISIT = FIELDS + ",instagram_profile_visits";
+const FIELDS_VISIT = FIELDS + ",instagram_profile_visits,video_thruplay_watched_actions";
 
 /**
  * يجلب تفصيلات الفترة لكل الحملات والمجموعات. يتخطى إن كانت البيانات أحدث من 50 دقيقة.

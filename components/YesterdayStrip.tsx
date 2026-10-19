@@ -8,7 +8,7 @@ export type YClient = { id: string; name: string; spend: number; flag: "stop" | 
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const ICON = { stop: "⚠", worse: "▲", over: "▲", better: "▼", same: "●", idle: "●" } as const;
 const COLOR = { stop: "var(--red)", worse: "var(--red)", over: "var(--orange)", better: "var(--green)", same: "var(--t3)", idle: "var(--t3)" } as const;
-const UNIT: Record<string, string> = { Messages: "messages", Reach: "reached", Visit: "visits", Engagement: "engagements", Other: "results" };
+const UNIT: Record<string, string> = { Messages: "messages", Reach: "reached", Visit: "visits", Engagement: "engagements", Leads: "leads", ThruPlay: "ThruPlays", Other: "results" };
 
 export default function YesterdayStrip({ label, clients }: { label: string; clients: YClient[] }) {
   const [open, setOpen] = useState<YClient | null>(null);

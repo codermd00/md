@@ -36,7 +36,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   achieved: { label: "Achieved", cls: "ok" }, on_track: { label: "On track", cls: "ok" },
   late: { label: "Late", cls: "bad" }, missed: { label: "Missed", cls: "bad" }, no_target: { label: "No target", cls: "mute" },
 };
-const TYPES: CampaignType[] = ["messages", "reach", "visit", "engagement"];
+const TYPES: CampaignType[] = ["messages", "reach", "visit", "engagement", "leads", "thruplay"];
 
 export default function PerformanceView(props: {
   clients: { id: string; name: string }[]; client: ClientInfo | null;
