@@ -1,7 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import PerformanceView, { type AdSetDTO, type BreakdownRow, type CampaignDTO, type DailyRow } from "@/components/PerformanceView";
 import { addDays, todayStr } from "@/lib/dates";
-import { computeProgress, previousPeriod } from "@/lib/progress";
+import { campaignStart, computeProgress, previousPeriod } from "@/lib/progress";
 import { cprValue } from "@/lib/results";
 import { diagnose } from "@/lib/diagnose";
 import { savedCid } from "@/lib/cid";
@@ -81,7 +81,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       const spend = cur ? Number(cur.spend) : 0;
       const result = cur ? Number(cur.results) : 0;
       const progress = computeProgress({
-        type: k.type, periodStart: vStart, periodEnd: vEnd, today: vToday,
+        type: k.type, periodStart: campaignStart(vStart, k.start_time, vEnd), periodEnd: vEnd, today: vToday,
         result, spend, goalTarget: g?.target != null ? Number(g.target) : null,
         goalBudget: g?.budget != null ? Number(g.budget) : null, threshold,
       });

@@ -42,6 +42,20 @@ export function previousPeriod(start: string, end: string): { from: string; to: 
   return { from: addDays(to, -(len - 1)), to };
 }
 
+/**
+ * The day a campaign's own plan starts: the later of the client's period start and the campaign's start date
+ * (in the app time zone). A campaign created mid-month is planned from its start day to the period end,
+ * so it is not "late" for days it did not exist.
+ */
+export function campaignStart(periodStart: string | null, campaignStartTime: string | null | undefined, periodEnd?: string | null): string | null {
+  if (!periodStart || !campaignStartTime) return periodStart;
+  const t = new Date(campaignStartTime);
+  if (isNaN(t.getTime())) return periodStart;
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: process.env.APP_TIMEZONE || "Asia/Baghdad" }).format(t);
+  if (day <= periodStart || (periodEnd && day > periodEnd)) return periodStart;
+  return day;
+}
+
 export function computeProgress(i: ProgressInput): Progress {
   const total = periodLength(i.periodStart, i.periodEnd);
   const elapsed = i.periodStart ? Math.min(total || 1e9, Math.max(0, diffDays(i.periodStart, i.today) + 1)) : 0;

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { addDays, todayStr } from "./dates";
-import { computeProgress, previousPeriod } from "./progress";
+import { campaignStart, computeProgress, previousPeriod } from "./progress";
 import { cprValue, TYPE_LABEL, type CampaignType } from "./results";
 import { liveBreakdown } from "./ai-live";
 
@@ -46,7 +46,7 @@ export async function buildContext(sb: SupabaseClient, clientId: string, periodS
     if (spend <= 0) return null;
     const g = (goals || []).find((x: any) => x.campaign_id === k.id);
     const p = computeProgress({
-      type: k.type, periodStart: from, periodEnd: to, today: now, result, spend,
+      type: k.type, periodStart: campaignStart(from, k.start_time, to), periodEnd: to, today: now, result, spend,
       goalTarget: g?.target != null ? Number(g.target) : null, goalBudget: g?.budget != null ? Number(g.budget) : null, threshold,
     });
     const type = k.type as CampaignType;

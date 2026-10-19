@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { addDays, daysLeft, todayStr } from "@/lib/dates";
-import { computeProgress } from "@/lib/progress";
+import { campaignStart, computeProgress } from "@/lib/progress";
 import { fetchAll } from "@/lib/fetchall";
 import { TYPE_LABEL, cprValue } from "@/lib/results";
 import YesterdayStrip, { type YClient } from "@/components/YesterdayStrip";
@@ -41,7 +41,7 @@ export default async function OverviewPage() {
   const [{ data: clients }, { data: setRows }, { data: camps }, { data: logs }, { data: orders }, { data: todayOrders }, { data: tasks }, { data: notes }, spendToday, { count: readyPosts }] = await Promise.all([
     sb.from("clients").select("id,name,period_start,period_end,budget,account_status,synced_at,alert_limits").order("name"),
     sb.from("settings").select("key,value").eq("key", "late_threshold"),
-    sb.from("campaigns").select("id,client_id,name,type,effective_status"),
+    sb.from("campaigns").select("id,client_id,name,type,effective_status,start_time"),
     sb.from("sync_log").select("client_id,ok,detail,created_at").gte("created_at", dayAgo).order("created_at", { ascending: false }).limit(200),
     Promise.resolve({ data: null as any }),
     sb.from("crm_orders").select("id,client_id").eq("day", today),
@@ -78,7 +78,7 @@ export default async function OverviewPage() {
       if (!g || !c.period_start) continue;
       const r = ranges.find((x: any) => x.entity_id === k.id && x.date_from === c.period_start);
       const p = computeProgress({
-        type: k.type, periodStart: c.period_start, periodEnd: c.period_end, today,
+        type: k.type, periodStart: campaignStart(c.period_start, k.start_time, c.period_end), periodEnd: c.period_end, today,
         result: r ? Number(r.results) : 0, spend: r ? Number(r.spend) : 0,
         goalTarget: g.target != null ? Number(g.target) : null, goalBudget: g.budget != null ? Number(g.budget) : null, threshold,
       });
