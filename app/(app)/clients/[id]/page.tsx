@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { daysLeft, todayStr } from "@/lib/dates";
 import { TYPE_LABEL, type CampaignType } from "@/lib/results";
+import { EditClientButton, EditGoalButton } from "@/components/ClientPageEdit";
 
 export const dynamic = "force-dynamic";
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -22,7 +23,7 @@ export default async function ClientPage({ params }: { params: { id: string } })
   const ids = (camps || []).map((k: any) => k.id);
   const [{ data: ranges }, { data: goals }] = await Promise.all([
     ids.length ? sb.from("insights_range").select("entity_id,date_from,spend,synced_at").eq("level", "campaign").in("entity_id", ids).order("synced_at", { ascending: false }) : Promise.resolve({ data: [] as any[] }),
-    c.period_start && ids.length ? sb.from("campaign_goals").select("campaign_id,budget").eq("period_start", c.period_start).in("campaign_id", ids) : Promise.resolve({ data: [] as any[] }),
+    c.period_start && ids.length ? sb.from("campaign_goals").select("campaign_id,budget,target").eq("period_start", c.period_start).in("campaign_id", ids) : Promise.resolve({ data: [] as any[] }),
   ]);
 
   // Budget split per campaign: spent, still reserved for it, and what is committed in total
@@ -31,8 +32,9 @@ export default async function ClientPage({ params }: { params: { id: string } })
     const spend = r ? Number(r.spend) : 0;
     const g = (goals || []).find((x: any) => x.campaign_id === k.id);
     const budget = g?.budget != null ? Number(g.budget) : null;
-    return { k, spend, budget, balance: budget !== null ? budget - spend : null, committed: Math.max(budget || 0, spend) };
-  }).filter((x: any) => x.spend > 0 || (x.budget || 0) > 0).sort((a: any, b: any) => b.committed - a.committed);
+    const target = g?.target != null ? Number(g.target) : null;
+    return { k, spend, budget, target, balance: budget !== null ? budget - spend : null, committed: Math.max(budget || 0, spend) };
+  }).filter((x: any) => x.spend > 0 || (x.budget || 0) > 0 || x.k.effective_status === "ACTIVE").sort((a: any, b: any) => b.committed - a.committed);
 
   const total = Number(c.budget) || 0;
   const spent = rows.reduce((s: number, x: any) => s + x.spend, 0);
@@ -43,6 +45,14 @@ export default async function ClientPage({ params }: { params: { id: string } })
   const pct = (n: number) => (total > 0 ? Math.min(100, Math.max(0, (n / total) * 100)) : 0);
   const limits = (c.alert_limits || {}) as Record<string, number>;
   const limitRows = Object.entries(limits).filter(([, v]) => Number(v) > 0);
+
+  const lim = (t: string) => (limits[t] != null ? String(limits[t]) : "");
+  const editInput = {
+    id: c.id, name: c.name, ig_username: c.ig_username || "", ad_account_id: c.ad_account_id || "",
+    period_start: c.period_start || "", period_end: c.period_end || "", budget: String(c.budget || ""),
+    business_type: c.business_type || "", city: c.city || "", page_id: c.page_id || "", ig_user_id: c.ig_user_id || "", run_posts: c.run_posts !== false,
+    alert_messages: lim("messages"), alert_engagement: lim("engagement"), alert_reach: lim("reach"), alert_visit: lim("visit"), alert_leads: lim("leads"), alert_thruplay: lim("thruplay"),
+  };
 
   const info: [string, string][] = [
     ["Ad account", c.ad_account_id ? `act_${c.ad_account_id}` : "—"],
@@ -65,6 +75,7 @@ export default async function ClientPage({ params }: { params: { id: string } })
           <div className="sub">{c.ig_username ? `@${c.ig_username}` : ""}</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <EditClientButton initial={editInput} />
           <Link className="btn" href={`/performance?client=${c.id}`}>Performance</Link>
           <span className={`chip ${c.account_status === "active" ? "ok" : c.account_status ? "bad" : "warn"}`}>{c.account_status || "Not synced"}</span>
         </div>
@@ -97,9 +108,9 @@ export default async function ClientPage({ params }: { params: { id: string } })
           <div className="empty"><b>No campaign budgets yet</b></div>
         ) : (
           <div style={{ overflowX: "auto" }}><table className="tbl tcards">
-            <thead><tr><th>Campaign</th><th>Type</th><th>Status</th><th>Budget</th><th>Spent</th><th>Balance</th><th>Share</th></tr></thead>
+            <thead><tr><th>Campaign</th><th>Type</th><th>Status</th><th>Budget</th><th>Spent</th><th>Balance</th><th>Share</th><th></th></tr></thead>
             <tbody>
-              {rows.map(({ k, spend, budget, balance, committed }: any) => (
+              {rows.map(({ k, spend, budget, target, balance, committed }: any) => (
                 <tr key={k.id}>
                   <td><b>{k.name}</b></td>
                   <td><span className="chip mute">{TYPE_LABEL[k.type as CampaignType]}</span></td>
@@ -108,6 +119,7 @@ export default async function ClientPage({ params }: { params: { id: string } })
                   <td data-label="Spent">{money(spend)}</td>
                   <td data-label="Balance" style={balance !== null && balance < 0 ? { color: "var(--red)" } : undefined}>{balance !== null ? money(balance) : "—"}</td>
                   <td data-label="Share">{total > 0 ? `${Math.round((committed / total) * 100)}%` : "—"}</td>
+                  <td>{c.period_start && <EditGoalButton campaignId={k.id} name={k.name} typeLabel={TYPE_LABEL[k.type as CampaignType]} periodStart={c.period_start} budget={budget} target={target} />}</td>
                 </tr>
               ))}
             </tbody>

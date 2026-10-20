@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { deleteClient, saveClient, syncNow, type ClientInput } from "@/app/(app)/clients/actions";
+import { deleteClient, syncNow, type ClientInput } from "@/app/(app)/clients/actions";
+import ClientForm, { EMPTY_CLIENT } from "./ClientForm";
 
 export type ClientCard = {
   id: string; name: string; ig_username: string | null; ad_account_id: string;
@@ -11,7 +12,6 @@ export type ClientCard = {
   account_status: string | null; spend: number; daysLeft: number | null; synced_at: string | null;
 };
 
-const EMPTY: ClientInput = { name: "", ig_username: "", ad_account_id: "", period_start: "", period_end: "", budget: "", business_type: "", city: "", page_id: "", ig_user_id: "", run_posts: false, alert_messages: "", alert_engagement: "", alert_reach: "", alert_visit: "", alert_leads: "", alert_thruplay: "" };
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 function statusOf(c: ClientCard): { key: string; label: string; cls: string } {
@@ -37,16 +37,6 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
     });
   }, [clients, q, filter]);
 
-  const set = (k: keyof ClientInput, v: string) => setForm((f) => (f ? { ...f, [k]: v } : f));
-
-  function save() {
-    if (!form) return;
-    start(async () => {
-      const r = await saveClient(form);
-      setMsg({ ok: r.ok, text: r.message });
-      if (r.ok) setForm(null);
-    });
-  }
   function edit(c: ClientCard) {
     setForm({
       id: c.id, name: c.name, ig_username: c.ig_username || "", ad_account_id: c.ad_account_id,
@@ -75,7 +65,7 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
         <div><div className="h1">Clients</div><div className="sub">{clients.length}</div></div>
         <div style={{ display: "flex", gap: 10 }}>
           <button className="btn" onClick={syncAllNow} disabled={pending}>{pending ? "..." : "Sync now"}</button>
-          <button className="btn pri" onClick={() => setForm({ ...EMPTY })}>+ Add Client</button>
+          <button className="btn pri" onClick={() => setForm({ ...EMPTY_CLIENT })}>+ Add Client</button>
         </div>
       </div>
 
@@ -135,40 +125,7 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
         </div>
       )}
 
-      {form && (
-        <div className="overlay" onClick={() => !pending && setForm(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>{form.id ? "Edit client" : "New client"}</h2>
-            <div className="grid g2">
-              <label className="f">Name<input value={form.name} onChange={(e) => set("name", e.target.value)} /></label>
-              <label className="f">Instagram username<input value={form.ig_username} onChange={(e) => set("ig_username", e.target.value)} placeholder="without @" /></label>
-              <label className="f" style={{ gridColumn: "1 / -1" }}>Ad account<input value={form.ad_account_id} onChange={(e) => set("ad_account_id", e.target.value)} placeholder="act_1234567890" /></label>
-              <label className="f">Period start<input type="date" value={form.period_start} onChange={(e) => set("period_start", e.target.value)} /></label>
-              <label className="f">Period end<input type="date" value={form.period_end} onChange={(e) => set("period_end", e.target.value)} /></label>
-              <label className="f">Budget ($)<input type="number" value={form.budget} onChange={(e) => set("budget", e.target.value)} /></label>
-              <label className="f">Page ID<input dir="ltr" value={form.page_id} onChange={(e) => set("page_id", e.target.value)} placeholder="123456789012345" /></label>
-              <label className="f">Instagram ID<input dir="ltr" value={form.ig_user_id} onChange={(e) => set("ig_user_id", e.target.value)} placeholder="Instagram business ID" /></label>
-              <label className="f" style={{ flexDirection: "row", alignItems: "center", gap: 8, gridColumn: "1 / -1" }}>
-                <input type="checkbox" checked={form.run_posts} onChange={(e) => setForm({ ...form, run_posts: e.target.checked })} style={{ width: "auto" }} />
-                Fetch Instagram posts (Content Manager)
-              </label>
-              <div style={{ gridColumn: "1 / -1", fontSize: 12, fontWeight: 700, color: "var(--t2)" }}>Daily cost alert — max cost per result today ($, as in Ads Manager, empty = off)</div>
-              <label className="f">Messages<input type="number" step="any" value={form.alert_messages} onChange={(e) => set("alert_messages", e.target.value)} /></label>
-              <label className="f">Engagement<input type="number" step="any" value={form.alert_engagement} onChange={(e) => set("alert_engagement", e.target.value)} /></label>
-              <label className="f">Reach (per 1,000)<input type="number" step="any" value={form.alert_reach} onChange={(e) => set("alert_reach", e.target.value)} /></label>
-              <label className="f">Visit<input type="number" step="any" value={form.alert_visit} onChange={(e) => set("alert_visit", e.target.value)} /></label>
-              <label className="f">Leads<input type="number" step="any" value={form.alert_leads} onChange={(e) => set("alert_leads", e.target.value)} /></label>
-              <label className="f">ThruPlay<input type="number" step="any" value={form.alert_thruplay} onChange={(e) => set("alert_thruplay", e.target.value)} /></label>
-              <label className="f">Type<input value={form.business_type} onChange={(e) => set("business_type", e.target.value)} /></label>
-              <label className="f">City<input value={form.city} onChange={(e) => set("city", e.target.value)} /></label>
-            </div>
-            <div className="acts">
-              <button className="btn" onClick={() => setForm(null)} disabled={pending}>Cancel</button>
-              <button className="btn pri" onClick={save} disabled={pending}>{pending ? "Saving..." : "Save"}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {form && <ClientForm initial={form} onClose={() => setForm(null)} onDone={(r) => setMsg({ ok: r.ok, text: r.message })} />}
     </>
   );
 }

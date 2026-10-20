@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { writeCid } from "@/lib/cid-client";
@@ -33,12 +33,20 @@ export default function Sidebar({ clients, initialClient }: { clients: { id: str
     window.addEventListener("cid-change", on);
     return () => window.removeEventListener("cid-change", on);
   }, []);
-  // opening a page with ?client= (for example from Overview) becomes the selected client
+  // a fresh page load (open / refresh) starts from All clients
+  useEffect(() => { try { document.cookie = "cid=;path=/;max-age=0"; } catch {} }, []);
+  // a ?client= link (for example from Overview) selects that client, then the URL is cleaned so a refresh goes back to All
+  const sp = useSearchParams();
+  const linked = sp.get("client");
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get("client");
-    if (q && clients.some((c) => c.id === q)) { setCid(q); writeCid(q); }
+    if (!linked) return;
+    if (clients.some((c) => c.id === linked)) {
+      setCid(linked); writeCid(linked);
+      const rest = new URLSearchParams(window.location.search); rest.delete("client");
+      router.replace(path + (rest.toString() ? "?" + rest.toString() : ""));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path]);
+  }, [linked]);
   useEffect(() => setMore(false), [path]);
   const moreItems = ITEMS.filter((x) => !TAB_HREFS.includes(x.href));
   const moreOn = moreItems.some((x) => path.startsWith(x.href));
@@ -46,10 +54,10 @@ export default function Sidebar({ clients, initialClient }: { clients: { id: str
   function pick(id: string) {
     setCid(id); writeCid(id);
     if (path.startsWith("/performance") || path.startsWith("/crm")) {
-      const sp = new URLSearchParams(window.location.search);
-      if (id) sp.set("client", id); else sp.delete("client");
-      sp.delete("period");
-      router.replace(path + (sp.toString() ? "?" + sp.toString() : ""));
+      const q = new URLSearchParams(window.location.search);
+      const had = q.has("client") || q.has("period");
+      q.delete("client"); q.delete("period");
+      if (had) router.replace(path + (q.toString() ? "?" + q.toString() : "")); else router.refresh();
     } else router.refresh();
   }
   const picker = (
