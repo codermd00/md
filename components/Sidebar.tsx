@@ -44,6 +44,7 @@ export default function Sidebar({ clients, initialClient }: { clients: { id: str
       setCid(linked); writeCid(linked);
       const rest = new URLSearchParams(window.location.search); rest.delete("client");
       router.replace(path + (rest.toString() ? "?" + rest.toString() : ""));
+      router.refresh();   // the clean URL may be served from the router cache with another client: refetch with the saved one
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linked]);
@@ -57,7 +58,8 @@ export default function Sidebar({ clients, initialClient }: { clients: { id: str
       const q = new URLSearchParams(window.location.search);
       const had = q.has("client") || q.has("period");
       q.delete("client"); q.delete("period");
-      if (had) router.replace(path + (q.toString() ? "?" + q.toString() : "")); else router.refresh();
+      if (had) router.replace(path + (q.toString() ? "?" + q.toString() : ""));
+      router.refresh();
     } else router.refresh();
   }
   const picker = (
