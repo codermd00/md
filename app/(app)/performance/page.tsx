@@ -18,7 +18,7 @@ async function fetchAll<T>(q: (from: number, to: number) => PromiseLike<{ data: 
   return out;
 }
 
-export default async function PerformancePage({ searchParams }: { searchParams: { client?: string; period?: string; camp?: string } }) {
+export default async function PerformancePage({ searchParams }: { searchParams: { client?: string; period?: string } }) {
   const sb = createServerSupabase();
   const today = todayStr();
   const [{ data: clients }, { data: setRows }] = await Promise.all([
@@ -126,7 +126,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
         id: client.id, name: client.name, periodStart: vStart, periodEnd: vEnd,
         budget: Number(client.budget) || 0
       }}
-      periods={archive} periodSel={arch ? arch.from : ""} initialCamp={searchParams.camp} campaigns={campaigns} adsets={adsets} breakdown={bdRows} daily={dailyRows} today={vToday} threshold={threshold}
+      periods={archive} periodSel={arch ? arch.from : ""} campaigns={campaigns} adsets={adsets} breakdown={bdRows} daily={dailyRows} today={vToday} threshold={threshold}
     />
   );
 }

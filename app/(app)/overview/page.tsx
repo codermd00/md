@@ -31,7 +31,7 @@ const ago = (iso: string | null) => {
   return m < 1 ? "Now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
 };
 
-type Item = { level: "bad" | "warn"; client: string; clientId: string; text: string; href?: string; seen?: { campaignId: string; periodStart: string; spend: number } };
+type Item = { level: "bad" | "warn"; client: string; clientId: string; text: string; seen?: { campaignId: string; periodStart: string; spend: number } };
 
 export default async function OverviewPage() {
   const sb = createServerSupabase();
@@ -148,7 +148,6 @@ export default async function OverviewPage() {
     if (sn && sn.period_start === x.client.period_start && x.spend <= Number(sn.spend_at_seen) + 0.005) continue;
     items.push({
       seen: { campaignId: x.camp.id, periodStart: x.client.period_start, spend: x.spend },
-      href: `/performance?client=${x.client.id}&camp=${x.camp.id}`,
       level: "bad", client: x.client.name, clientId: x.client.id,
       text: `${x.camp.name} (${TYPE_LABEL[x.camp.type as keyof typeof TYPE_LABEL]}) ${x.p.status === "missed" ? "missed" : "late"}: ${Math.round(x.p.pct || 0)}% of target`,
     });
@@ -179,7 +178,7 @@ export default async function OverviewPage() {
       <div className="v" style={tone === "bad" && Number(v) > 0 ? { color: "var(--red)" } : undefined}>{v}</div>
           </div>
   );
-  const link = (it: Item) => <Link href={it.href || `/performance?client=${it.clientId}`}><b>{it.client}</b></Link>;
+  const link = (it: Item) => <Link href={`/performance?client=${it.clientId}`}><b>{it.client}</b></Link>;
 
   return (
     <>
@@ -192,6 +191,16 @@ export default async function OverviewPage() {
         <div className="panel empty"><b>No clients yet</b><Link href="/clients" style={{ color: "var(--blue2)" }}>Add your first client</Link></div>
       ) : (
         <>
+          <div className="tiles">
+            {tile("Total Clients", cl.length)}
+            {tile("Active Accounts", active)}
+            {tile("Disabled", disabled.length, "bad")}
+            {tile("Finished", finished.length)}
+            {tile("Ready Posts", readyPosts || 0)}
+            {tile("Today's Orders", ordersToday)}
+            {tile("Goal At Risk", risky.length, "bad")}
+          </div>
+
           <YesterdayStrip label={yLabel} clients={yClients} />
 
           <div className="ov3c">
@@ -206,7 +215,7 @@ export default async function OverviewPage() {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                         {link(it)}<span style={{ display: "flex", gap: 6, alignItems: "center" }}><span className={`chip sm ${it.level === "bad" ? "bad" : "warn"}`}>{it.level === "bad" ? "critical" : "warning"}</span>{it.seen && <SeenButton {...it.seen} />}</span>
                       </div>
-                      <div className="c" dir="auto">{it.href ? <Link href={it.href} style={{ color: "inherit" }}>{it.text}</Link> : it.text}</div>
+                      <div className="c" dir="auto">{it.text}</div>
                     </div>
                   ))}
                   {items.length > 12 && <div className="sub">+{items.length - 12} more</div>}
@@ -258,15 +267,6 @@ export default async function OverviewPage() {
             </div>
           </div>
 
-          <div className="tiles" style={{ marginTop: 14 }}>
-            {tile("Total Clients", cl.length)}
-            {tile("Active Accounts", active)}
-            {tile("Disabled", disabled.length, "bad")}
-            {tile("Finished", finished.length)}
-            {tile("Ready Posts", readyPosts || 0)}
-            {tile("Today's Orders", ordersToday)}
-            {tile("Goal At Risk", risky.length, "bad")}
-          </div>
         </>
       )}
     </>

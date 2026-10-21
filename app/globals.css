@@ -142,8 +142,6 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 .fnd{border:1px solid var(--border);border-left-width:3px;border-radius:10px;padding:9px 12px;font-size:12.5px}
 .fnd.bad{border-left-color:var(--red)}.fnd.warn{border-left-color:var(--orange)}.fnd.ok{border-left-color:var(--green)}
 .fnd b{display:block;font-size:13px;margin-bottom:3px}
-.verdict{display:inline-block;margin:2px 0 8px;padding:5px 12px;border-radius:999px;font-size:12.5px;font-weight:700}
-.verdict.bad{background:rgba(229,100,100,.14);color:var(--red)}.verdict.warn{background:rgba(245,194,97,.16);color:var(--orange)}.verdict.ok{background:rgba(62,189,140,.14);color:var(--green)}
 .fnd .c{color:var(--t2)}.fnd .a{margin-top:3px;color:var(--blue2);font-weight:600}
 .dsum{display:flex;justify-content:space-between;gap:8px;padding:7px 4px;border-bottom:1px solid var(--border);font-size:12.5px;cursor:pointer}
 .dsum:last-child{border:0}
