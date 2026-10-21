@@ -6,7 +6,7 @@ import { writeCid } from "@/lib/cid-client";
 import LineChart, { type Series } from "./LineChart";
 import BreakdownPanel from "./BreakdownPanel";
 import AiPanel from "./AiPanel";
-import type { Finding } from "@/lib/diagnose";
+import { headline, type Finding } from "@/lib/diagnose";
 import { deletePeriod, saveGoal } from "@/app/(app)/performance/actions";
 import { syncNow } from "@/app/(app)/clients/actions";
 import { TYPE_LABEL, type CampaignType } from "@/lib/results";
@@ -41,12 +41,12 @@ const TYPES: CampaignType[] = ["messages", "reach", "visit", "engagement", "lead
 export default function PerformanceView(props: {
   clients: { id: string; name: string }[]; client: ClientInfo | null;
   campaigns: CampaignDTO[]; adsets: AdSetDTO[]; breakdown: BreakdownRow[]; daily: DailyRow[]; today: string; threshold: number;
-  periods?: { from: string; to: string }[]; periodSel?: string;
+  periods?: { from: string; to: string }[]; periodSel?: string; initialCamp?: string;
 }) {
   const { clients, client, campaigns, adsets, breakdown, daily, threshold, today } = props;
   const periods = props.periods || [], periodSel = props.periodSel || "";
   const router = useRouter();
-  const [sel, setSel] = useState(campaigns.find((c) => c.type === "messages")?.id || "all");
+  const [sel, setSel] = useState(campaigns.find((c) => c.id === props.initialCamp)?.id || campaigns.find((c) => c.type === "messages")?.id || "all");
   const [edit, setEdit] = useState<CampaignDTO | null>(null);
   const [form, setForm] = useState({ budget: "", target: "" });
   const [msg, setMsg] = useState<string>("");
@@ -272,12 +272,13 @@ export default function PerformanceView(props: {
                 {picked ? (
                   <>
                     
+                    {(() => { const h = headline(picked.findings, picked.progress.status); return <div className={`verdict ${h.level}`} dir="rtl">{h.text}</div>; })()}
                     <div className="diag">
                       {picked.findings.map((f, i) => (
                         <div className={`fnd ${f.level}`} key={i} dir="rtl">
                           <b>{f.title}</b>
-                          {f.cause && <div className="c">{f.cause}</div>}
-                          {f.action && <div className="a">← {f.action}</div>}
+                          {f.cause && <div className="c" style={{ whiteSpace: "pre-line" }}>{f.cause}</div>}
+                          {f.action && <div className="a" style={{ whiteSpace: "pre-line" }}>← {f.action}</div>}
                         </div>
                       ))}
                     </div>
