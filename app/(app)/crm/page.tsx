@@ -2,7 +2,6 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import CrmView, { type OrderRow, type GovRow, type DayRow, type Health } from "@/components/CrmView";
 import { addDays, todayStr } from "@/lib/dates";
 import { fetchAll } from "@/lib/fetchall";
-import { savedCid } from "@/lib/cid";
 import { metaRegionToGov, UNKNOWN_GOV } from "@/lib/governorates";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +11,7 @@ export default async function CrmPage({ searchParams }: { searchParams: { client
   const today = todayStr();
   const { data: clients } = await sb.from("clients").select("id,name,period_start,period_end,page_id,ig_user_id,synced_at").order("name");
   const list: any[] = clients || [];
-  const client = list.find((c) => c.id === searchParams.client) || list.find((c) => c.id === savedCid()) || list[0] || null;
+  const client = list.find((c) => c.id === searchParams.client) || list[0] || null;
   const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 
   // صحة الـ webhook (عامة، لا تخص عميلاً)

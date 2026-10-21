@@ -1,9 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { writeCid } from "@/lib/cid-client";
 
 const I = (d: string) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
@@ -23,44 +22,50 @@ const ITEMS = [
 const TAB_HREFS = ["/overview", "/performance", "/watch", "/content", "/crm"];
 const TAB_LABEL: Record<string, string> = { "/overview": "Overview", "/clients": "Clients", "/performance": "Perf", "/watch": "Watch", "/content": "Content", "/crm": "CRM" };
 
-export default function Sidebar({ clients, initialClient }: { clients: { id: string; name: string }[]; initialClient: string }) {
+const CLIENT_PAGES = ["/performance", "/watch", "/content", "/tasks", "/crm"];
+
+export default function Sidebar({ clients }: { clients: { id: string; name: string }[] }) {
   const path = usePathname();
   const router = useRouter();
   const [more, setMore] = useState(false);
-  const [cid, setCid] = useState(initialClient);
+  // The picked client lives here while you move between pages, and travels in the ?client= part of the page links.
+  // A full page load (open / refresh) starts again from All clients.
+  const [cid, setCid] = useState("");
+  const sp = useSearchParams();
+  const linked = sp.get("client") || "";
+  const fresh = useRef(true);
+  useEffect(() => {
+    if (fresh.current) {
+      fresh.current = false;
+      if (linked) {   // refreshed on a client link: drop it and show All
+        const rest = new URLSearchParams(window.location.search); rest.delete("client"); rest.delete("period");
+        router.replace(path + (rest.toString() ? "?" + rest.toString() : ""));
+        router.refresh();
+      }
+      return;
+    }
+    if (clients.some((c) => c.id === linked)) setCid(linked);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linked]);
   useEffect(() => {
     const on = (e: Event) => setCid(String((e as CustomEvent).detail || ""));
     window.addEventListener("cid-change", on);
     return () => window.removeEventListener("cid-change", on);
   }, []);
-  // a fresh page load (open / refresh) starts from All clients
-  useEffect(() => { try { document.cookie = "cid=;path=/;max-age=0"; } catch {} }, []);
-  // a ?client= link (for example from Overview) selects that client, then the URL is cleaned so a refresh goes back to All
-  const sp = useSearchParams();
-  const linked = sp.get("client");
-  useEffect(() => {
-    if (!linked) return;
-    if (clients.some((c) => c.id === linked)) {
-      setCid(linked); writeCid(linked);
-      const rest = new URLSearchParams(window.location.search); rest.delete("client");
-      router.replace(path + (rest.toString() ? "?" + rest.toString() : ""));
-      router.refresh();   // the clean URL may be served from the router cache with another client: refetch with the saved one
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linked]);
+  const href = (h: string) => (cid && CLIENT_PAGES.includes(h) ? `${h}?client=${cid}` : h);
   useEffect(() => setMore(false), [path]);
   const moreItems = ITEMS.filter((x) => !TAB_HREFS.includes(x.href));
   const moreOn = moreItems.some((x) => path.startsWith(x.href));
 
   function pick(id: string) {
-    setCid(id); writeCid(id);
-    if (path.startsWith("/performance") || path.startsWith("/crm")) {
+    setCid(id);
+    if (CLIENT_PAGES.some((p) => path.startsWith(p))) {
       const q = new URLSearchParams(window.location.search);
-      const had = q.has("client") || q.has("period");
       q.delete("client"); q.delete("period");
-      if (had) router.replace(path + (q.toString() ? "?" + q.toString() : ""));
+      if (id) q.set("client", id);
+      router.push(path + (q.toString() ? "?" + q.toString() : ""));
       router.refresh();
-    } else router.refresh();
+    }
   }
   const picker = (
     <select value={cid} onChange={(e) => pick(e.target.value)}>
@@ -86,7 +91,7 @@ export default function Sidebar({ clients, initialClient }: { clients: { id: str
       <div className="brand"><i>A</i> Ads Dashboard</div>
       <nav className="nav">
         {ITEMS.map((it) => (
-          <Link key={it.href} href={it.href} className={path.startsWith(it.href) ? "on" : ""}>
+          <Link key={it.href} href={href(it.href)} className={path.startsWith(it.href) ? "on" : ""}>
             {I(it.icon)} {it.label}
           </Link>
         ))}
@@ -98,7 +103,7 @@ export default function Sidebar({ clients, initialClient }: { clients: { id: str
       </div>
       <nav className="bnav">
         {ITEMS.filter((x) => TAB_HREFS.includes(x.href)).map((it) => (
-          <Link key={it.href} href={it.href} className={path.startsWith(it.href) ? "on" : ""}>{I(it.icon)}<span>{TAB_LABEL[it.href]}</span></Link>
+          <Link key={it.href} href={href(it.href)} className={path.startsWith(it.href) ? "on" : ""}>{I(it.icon)}<span>{TAB_LABEL[it.href]}</span></Link>
         ))}
         <button className={moreOn || more ? "on" : ""} onClick={() => setMore(!more)}>{I("M5 12h.01M12 12h.01M19 12h.01")}<span>More</span></button>
       </nav>
@@ -106,7 +111,7 @@ export default function Sidebar({ clients, initialClient }: { clients: { id: str
         <div className="sheet-bg" onClick={() => setMore(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <div className="side-sel">{picker}</div>
-            {moreItems.map((it) => <Link key={it.href} href={it.href} className={path.startsWith(it.href) ? "on" : ""}>{I(it.icon)} {it.label}</Link>)}
+            {moreItems.map((it) => <Link key={it.href} href={href(it.href)} className={path.startsWith(it.href) ? "on" : ""}>{I(it.icon)} {it.label}</Link>)}
             <button onClick={toggleTheme}>{I("M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z")} Light / Dark</button>
             <button onClick={logout}>{I("M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9")} Logout</button>
           </div>

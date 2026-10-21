@@ -1,7 +1,4 @@
-// Remember the picked client for every page and tell the sidebar
+// Tell the sidebar which client a page just picked (the client itself travels in the ?client= link)
 export function writeCid(id: string) {
-  try {
-    document.cookie = `cid=${id};path=/;max-age=31536000;samesite=lax`;
-    window.dispatchEvent(new CustomEvent("cid-change", { detail: id }));
-  } catch {}
+  try { window.dispatchEvent(new CustomEvent("cid-change", { detail: id })); } catch {}
 }
