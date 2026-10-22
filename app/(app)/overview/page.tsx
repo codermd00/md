@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { addDays, daysLeft, todayStr } from "@/lib/dates";
+import { daysLeft, todayStr } from "@/lib/dates";
 import { campaignStart, computeProgress } from "@/lib/progress";
 import { fetchAll } from "@/lib/fetchall";
-import { TYPE_LABEL, cprValue } from "@/lib/results";
-import YesterdayStrip, { type YClient } from "@/components/YesterdayStrip";
+import { TYPE_LABEL } from "@/lib/results";
 import DataHealth from "@/components/DataHealth";
 import SeenButton from "@/components/SeenButton";
 import WatchLine from "@/components/WatchLine";
@@ -12,7 +11,6 @@ import { loadWatch, type WatchRow } from "@/lib/watch";
 import { addQuickNote } from "./actions";
 
 export const dynamic = "force-dynamic";
-const MIN_RUNNING = 0.5; // an active campaign must spend more than this per day to count as running
 
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const ACCOUNT_HINT: Record<string, string> = {
@@ -52,10 +50,7 @@ export default async function OverviewPage() {
   ]);
   const threshold = Number((setRows || [])[0]?.value) || 95;
   const cl: any[] = clients || [];
-  const yDay = addDays(today, -1);
   const watchRows: WatchRow[] = await loadWatch(sb, today, false).catch(() => []);
-  const { data: yRows } = await sb.from("insights_daily").select("entity_id,client_id,day,spend,results").eq("level", "campaign")
-    .gte("day", addDays(today, -4)).lte("day", yDay);
   const cs: any[] = camps || [];
   const { data: seenRows } = await sb.from("attention_seen").select("campaign_id,period_start,spend_at_seen");
   const seenMap = new Map<string, any>(((seenRows as any[]) || []).map((x) => [x.campaign_id, x]));
@@ -86,48 +81,6 @@ export default async function OverviewPage() {
     }
   }
 
-  // ---- Yesterday strip: yesterday vs the 3 days before it, per campaign ----
-  const yClients: YClient[] = [];
-  for (const c of cl) {
-    const camps2: YClient["campaigns"] = [];
-    let spendTotal = 0, worse = false, better = false, stop = false, over = false;
-    for (const k of cs.filter((x) => x.client_id === c.id)) {
-      // only days inside the client's current period count
-      const mine = ((yRows || []) as any[]).filter((r) => r.entity_id === k.id && (!c.period_start || r.day >= c.period_start));
-      const y = mine.filter((r) => r.day === yDay), p3 = mine.filter((r) => r.day !== yDay);
-      const sum = (a: any[], f: string) => a.reduce((t, r) => t + Number(r[f] || 0), 0);
-      const ys = sum(y, "spend"), yr = sum(y, "results"), ps = sum(p3, "spend"), pr = sum(p3, "results");
-      // A campaign counts as running when it is ACTIVE and spent more than $0.50
-      const active = k.effective_status === "ACTIVE";
-      if (ys <= 0 && !(active && ps > 0)) continue;           // paused / finished campaigns stay hidden
-      const cost = cprValue(k.type, ys, yr), prev = cprValue(k.type, ps, pr);
-      const stopped = active && ys < MIN_RUNNING;
-      // With a cost limit (set in the client file) the change is measured against that limit, not the previous days:
-      // under the limit is fine whatever the daily price swings. Without a limit it falls back to the previous 3 days.
-      const lim = Number(c.alert_limits?.[k.type]) || 0;
-      const delta = cost === null ? null : lim > 0 ? (cost / lim - 1) * 100 : prev ? (cost / prev - 1) * 100 : null;
-      const isOver = !stopped && cost !== null && lim > 0 && cost > lim;
-      if (stopped) { if (ys > 0) stop = true; }   // spending almost nothing is a warning; no spend at all is just stopped (grey)
-      else if (lim > 0) { if (isOver) { if (delta !== null && delta > 10) worse = true; else over = true; } else if (delta !== null && delta < -10) better = true; }
-      else if (delta !== null && delta > 10) worse = true; else if (delta !== null && delta < -10) better = true;
-      spendTotal += ys;
-      camps2.push({
-        name: k.name, type: TYPE_LABEL[k.type as keyof typeof TYPE_LABEL], spend: ys, results: yr, stopped, delta, over: isOver,
-        limit: lim > 0 ? "$" + (lim < 0.01 ? lim.toFixed(3) : lim.toFixed(2)) + (k.type === "reach" ? " /1K" : "") : null,
-        cost: cost === null ? "—" : "$" + (cost < 0.01 ? cost.toFixed(3) : cost.toFixed(2)) + (k.type === "reach" ? " /1K" : " per result"),
-      });
-    }
-    const running = !c.period_start || !c.period_end || (c.period_start <= yDay && c.period_end >= yDay);
-    if (camps2.length === 0) {
-      if (running && c.account_status === "active") yClients.push({ id: c.id, name: c.name, spend: 0, flag: "idle", campaigns: [] });
-      continue;
-    }
-    camps2.sort((a, b) => b.spend - a.spend);
-    yClients.push({ id: c.id, name: c.name, spend: spendTotal, flag: stop ? "stop" : worse ? "worse" : over ? "over" : better ? "better" : spendTotal <= 0 ? "idle" : "same", campaigns: camps2 });
-  }
-  const yRank = { stop: 0, worse: 1, over: 2, same: 3, better: 4, idle: 5 } as const;
-  yClients.sort((a, b) => yRank[a.flag] - yRank[b.flag] || b.spend - a.spend);
-  const yLabel = new Date(yDay + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
   // ---- العدّادات ----
   const active = cl.filter((c) => c.account_status === "active").length;
@@ -201,7 +154,6 @@ export default async function OverviewPage() {
             {tile("Goal At Risk", risky.length, "bad")}
           </div>
 
-          <YesterdayStrip label={yLabel} clients={yClients} />
 
           <div className="ov3c">
             <div className="panel">
