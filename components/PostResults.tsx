@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { loadPostResults, saveOrders, saveVerdict, type PostResultRow, type PostResultsOut, type RangeKey, type Verdict } from "@/app/(app)/content/results-actions";
-import { loadReview, markReviewed, type ReviewOut } from "@/app/(app)/content/review-actions";
 import { TYPE_LABEL } from "@/lib/results";
 
 const RANGES: [RangeKey, string][] = [["period", "Period"], ["7d", "7 days"], ["30d", "30 days"]];
@@ -49,15 +48,14 @@ function OrdersInput({ clientId, r }: { clientId: string; r: PostResultRow }) {
 
 const VERDICTS: [Verdict, string, string][] = [["good", "var(--green)", "Strong"], ["mid", "var(--orange)", "Average"], ["bad", "var(--red)", "Weak"]];
 
-function VerdictDots({ clientId, r, onSet }: { clientId: string; r: PostResultRow; onSet?: (key: string, v: Verdict | null) => void }) {
+function VerdictDots({ clientId, r }: { clientId: string; r: PostResultRow }) {
   const [v, setV] = useState<Verdict | null>(r.verdict);
   const [, start] = useTransition();
   useEffect(() => setV(r.verdict), [r.verdict, r.key]);
   const pick = (x: Verdict) => {
     const next = v === x ? null : x;
     setV(next);
-    onSet?.(r.key, next);
-    start(async () => { const res = await saveVerdict(clientId, r.key, next || ""); if (!res.ok) { setV(v); onSet?.(r.key, v); } });
+    start(async () => { const res = await saveVerdict(clientId, r.key, next || ""); if (!res.ok) setV(v); });
   };
   return (
     <div style={{ display: "flex", gap: 7 }}>
@@ -104,53 +102,6 @@ function InfoButton({ r }: { r: PostResultRow }) {
   );
 }
 
-const agoText = (iso: string | null) => {
-  if (!iso) return { t: "never", late: false };
-  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  return { t: d <= 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`, late: d >= 7 };
-};
-
-function ReviewPanel({ clientId, rev, unjudged, onReviewed }: { clientId: string; rev: ReviewOut | null; unjudged: PostResultRow[]; onReviewed: (at: string) => void }) {
-  const [pending, start] = useTransition();
-  if (!rev) return null;
-  const last = agoText(rev.lastReviewed);
-  const nothing = rev.noAd.length === 0 && unjudged.length === 0;
-  return (
-    <div className="panel" style={{ marginBottom: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-        <h3 style={{ margin: 0 }}>Weekly review</h3>
-        <span className="sm" style={last.late ? { color: "var(--red)", fontWeight: 700 } : undefined}>Last: {last.t}</span>
-        <button className="btn" style={{ marginInlineStart: "auto" }} disabled={pending}
-          onClick={() => start(async () => { const x = await markReviewed(clientId); if (x.ok) onReviewed(x.at); })}>{pending ? "…" : "Reviewed"}</button>
-      </div>
-      {!rev.ok && <div className="sm" style={{ color: "var(--red)" }}>{rev.message}</div>}
-      {rev.noAd.length > 0 && (
-        <div style={{ marginBottom: 10 }}>
-          <div className="sm" style={{ marginBottom: 6 }}>No ad yet · {rev.noAd.length}</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {rev.noAd.slice(0, 12).map((p) => (
-              <a key={p.id} href={p.permalink} target="_blank" rel="noreferrer" title={p.shortcode} style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", display: "block" }}>
-                <div className="pimg" style={{ width: 40, height: 40 }}>{p.thumb ? <img src={p.thumb} alt="" loading="lazy" /> : <span>—</span>}</div>
-              </a>
-            ))}
-            {rev.noAd.length > 12 && <span className="sm" style={{ alignSelf: "center" }}>+{rev.noAd.length - 12}</span>}
-          </div>
-        </div>
-      )}
-      {unjudged.length > 0 && (
-        <div>
-          <div className="sm" style={{ marginBottom: 6 }}>Running, no verdict · {unjudged.length}</div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {unjudged.slice(0, 12).map((r) => <span key={r.key} className="chip mute" dir="auto">{r.name}</span>)}
-            {unjudged.length > 12 && <span className="sm" style={{ alignSelf: "center" }}>+{unjudged.length - 12}</span>}
-          </div>
-        </div>
-      )}
-      {nothing && rev.ok && <div className="sm">Nothing pending</div>}
-    </div>
-  );
-}
-
 function Section({ title, list, children }: { title: string; list: PostResultRow[]; children: ReactNode }) {
   if (list.length === 0) return null;
   return (
@@ -166,9 +117,6 @@ export default function PostResults({ clientId }: { clientId: string }) {
   const [data, setData] = useState<PostResultsOut | null>(null);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
-  const [rev, setRev] = useState<ReviewOut | null>(null);
-  const [judged, setJudged] = useState<Record<string, Verdict | null>>({});
-  const onSet = (key: string, v: Verdict | null) => setJudged((j) => ({ ...j, [key]: v }));
 
   useEffect(() => {
     if (!clientId) { setData(null); return; }
@@ -177,15 +125,6 @@ export default function PostResults({ clientId }: { clientId: string }) {
     loadPostResults(clientId, range).then((d) => { if (live) { setData(d); setLoading(false); } }).catch(() => { if (live) { setData({ ok: false, message: "Failed to load", from: "", to: "", rows: [] }); setLoading(false); } });
     return () => { live = false; };
   }, [clientId, range, tick]);
-
-  useEffect(() => {
-    setRev(null);
-    if (!clientId) return;
-    let live = true;
-    loadReview(clientId).then((x) => { if (live) setRev(x); }).catch(() => {});
-    return () => { live = false; };
-  }, [clientId, tick]);
-  useEffect(() => { setJudged({}); }, [data]);
 
   if (!clientId) return <div className="panel empty"><b>Select a client</b></div>;
 
@@ -206,8 +145,6 @@ export default function PostResults({ clientId }: { clientId: string }) {
         <button className="btn" onClick={() => setTick(tick + 1)} disabled={loading}>{loading ? "Loading…" : "Refresh"}</button>
       </div>
 
-      <ReviewPanel clientId={clientId} rev={rev} unjudged={rows.filter((r) => r.active && !(r.key in judged ? judged[r.key] : r.verdict))} onReviewed={(at) => setRev(rev && { ...rev, lastReviewed: at })} />
-
       {data && !data.ok && <div className="msg err" style={{ marginBottom: 12 }}>{data.message}</div>}
       {data?.ok && rows.length === 0 && <div className="panel empty"><b>No ad spend in this range</b></div>}
       {!data && loading && <div className="panel empty"><b>Loading…</b></div>}
@@ -221,7 +158,7 @@ export default function PostResults({ clientId }: { clientId: string }) {
               <td>{num(r.result)} <span className="sm">{TYPE_LABEL[r.type]}</span></td><td>{cost(r.spend, r.result)}</td>
               <td><Follows n={r.follows} /></td>
               <td><OrdersInput clientId={clientId} r={r} /></td>
-              <td><VerdictDots clientId={clientId} r={r} onSet={onSet} /></td>
+              <td><VerdictDots clientId={clientId} r={r} /></td>
               <td><InfoButton r={r} /></td>
             </tr>
           ))}</tbody>
@@ -236,7 +173,7 @@ export default function PostResults({ clientId }: { clientId: string }) {
               <td><PostCell r={r} /></td><td>{money(r.spend)}</td><td>{num(r.reach)}</td>
               <td>{num(r.result)}</td><td>{cost(r.spend, r.result)}</td>
               <td><Follows n={r.follows} always /></td>
-              <td><VerdictDots clientId={clientId} r={r} onSet={onSet} /></td>
+              <td><VerdictDots clientId={clientId} r={r} /></td>
               <td><InfoButton r={r} /></td>
             </tr>
           ))}</tbody>
@@ -251,7 +188,7 @@ export default function PostResults({ clientId }: { clientId: string }) {
               <td><PostCell r={r} /></td><td>{TYPE_LABEL[r.type]}</td><td>{money(r.spend)}</td><td>{num(r.reach)}</td><td>{num(r.result)}</td>
               <td>{r.type === "reach" ? (r.result > 0 ? "$" + ((r.spend / r.result) * 1000).toFixed(2) + " /1K" : "—") : cost(r.spend, r.result)}</td>
               <td><Follows n={r.follows} /></td>
-              <td><VerdictDots clientId={clientId} r={r} onSet={onSet} /></td>
+              <td><VerdictDots clientId={clientId} r={r} /></td>
               <td><InfoButton r={r} /></td>
             </tr>
           ))}</tbody>
@@ -261,7 +198,7 @@ export default function PostResults({ clientId }: { clientId: string }) {
       <Section title="Other" list={other}>
         <table className="bt">
           <thead><tr><th>Ad</th><th>Spend</th><th>Reach</th><th>Follows</th><th>Verdict</th><th></th></tr></thead>
-          <tbody>{other.map((r) => <tr key={r.key}><td><PostCell r={r} /></td><td>{money(r.spend)}</td><td>{num(r.reach)}</td><td><Follows n={r.follows} /></td><td><VerdictDots clientId={clientId} r={r} onSet={onSet} /></td><td><InfoButton r={r} /></td></tr>)}</tbody>
+          <tbody>{other.map((r) => <tr key={r.key}><td><PostCell r={r} /></td><td>{money(r.spend)}</td><td>{num(r.reach)}</td><td><Follows n={r.follows} /></td><td><VerdictDots clientId={clientId} r={r} /></td><td><InfoButton r={r} /></td></tr>)}</tbody>
         </table>
       </Section>
     </>

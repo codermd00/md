@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import WatchButton from "./WatchButton";
 import PostResults from "./PostResults";
-import ReportView from "./ReportView";
 import { duplicatePost, hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
 
 export type PostCard = {
@@ -24,7 +23,7 @@ const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
 export default function ContentView({ clients, posts, initialClient = "" }: { initialClient?: string; clients: { id: string; name: string; hasIg: boolean; watch: boolean }[]; posts: PostCard[] }) {
   const router = useRouter();
-  const [view, setView] = useState<"posts" | "results" | "report">("posts");
+  const [view, setView] = useState<"posts" | "results">("posts");
   const [tab, setTab] = useState<(typeof TABS)[number][0]>("all");
   const [client, setClient] = useState(initialClient);
   const [q, setQ] = useState("");
@@ -63,10 +62,9 @@ export default function ContentView({ clients, posts, initialClient = "" }: { in
       <div className="btabs" style={{ marginTop: 0, marginBottom: 12 }}>
         <span className={`btab ${view === "posts" ? "on" : ""}`} onClick={() => setView("posts")}>Posts</span>
         <span className={`btab ${view === "results" ? "on" : ""}`} onClick={() => setView("results")}>Results</span>
-        <span className={`btab ${view === "report" ? "on" : ""}`} onClick={() => setView("report")}>Report</span>
       </div>
 
-      {view === "results" ? <PostResults clientId={client} /> : view === "report" ? <ReportView clientId={client} /> : (
+      {view === "results" ? <PostResults clientId={client} /> : (
         <>
       {noIg.length > 0 && <div className="fnd warn" style={{ marginBottom: 12 }}><b>No Instagram ID: {noIg.map((c) => c.name).join(", ")}</b></div>}
       {msg && <div className="fnd warn" style={{ marginBottom: 12 }}><div className="c" dir="auto">{msg}</div></div>}
