@@ -46,7 +46,7 @@ export async function loadPostResults(clientId: string, range: RangeKey): Promis
       return {
         key: a.key, ordersKey: ok, name: a.name, dark: a.dark, code: a.code, type: a.type, goal: a.goal,
         ads: a.ads, spend: a.spend, result: a.result, visits: a.visits, follows: a.follows, reach: a.reach,
-        thumb: p?.thumb_path ? `${base}/storage/v1/object/public/thumbs/${p.thumb_path}` : "",
+        thumb: p?.thumb_path ? `${base}/storage/v1/object/public/thumbs/${p.thumb_path}` : a.thumb,
         permalink: p?.permalink || (a.code ? `https://www.instagram.com/p/${a.code}/` : ""),
         postedAt: p?.posted_at || null, mediaType: p?.media_type || "",
         orders: a.goal === "sales" ? (orders.has(ok) ? orders.get(ok)! : null) : null,

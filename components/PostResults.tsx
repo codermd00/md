@@ -64,8 +64,7 @@ function VerdictDots({ clientId, r }: { clientId: string; r: PostResultRow }) {
   );
 }
 
-const Follows = ({ n, always }: { n: number; always?: boolean }) =>
-  n > 0 ? <b style={{ color: "var(--green)" }}>{num(n)}</b> : <>{always ? "0" : "—"}</>;
+const Follows = ({ n, always }: { n: number; always?: boolean }) => <>{n > 0 ? num(n) : always ? "0" : "—"}</>;
 
 function Section({ title, list, children }: { title: string; list: PostResultRow[]; children: ReactNode }) {
   if (list.length === 0) return null;
