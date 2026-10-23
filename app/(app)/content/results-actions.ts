@@ -7,7 +7,7 @@ import type { CampaignType } from "@/lib/results";
 export type PostResultRow = {
   key: string; ordersKey: string; name: string; dark: boolean; code: string | null; type: CampaignType; goal: Goal;
   ads: number; spend: number; result: number; visits: number; follows: number; reach: number;
-  thumb: string; permalink: string; postedAt: string | null; mediaType: string; orders: number | null; verdict: Verdict | null; active: boolean;
+  thumb: string; permalink: string; postedAt: string | null; mediaType: string; orders: number | null; verdict: Verdict | null; active: boolean; adList: { id: string; adset: string; active: boolean }[];
 };
 export type Verdict = "good" | "mid" | "bad";
 export type PostResultsOut = { ok: boolean; message: string; from: string; to: string; rows: PostResultRow[] };
@@ -50,7 +50,7 @@ export async function loadPostResults(clientId: string, range: RangeKey): Promis
         permalink: p?.permalink || (a.code ? `https://www.instagram.com/p/${a.code}/` : ""),
         postedAt: p?.posted_at || null, mediaType: p?.media_type || "",
         orders: a.goal === "sales" ? (orders.has(ok) ? orders.get(ok)! : null) : null,
-        verdict: verdicts.get(a.key) || null, active: a.active,
+        verdict: verdicts.get(a.key) || null, active: a.active, adList: a.adList,
       };
     });
     return { ok: true, message: "", from, to, rows };

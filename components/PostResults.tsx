@@ -69,6 +69,39 @@ function VerdictDots({ clientId, r }: { clientId: string; r: PostResultRow }) {
 
 const Follows = ({ n, always }: { n: number; always?: boolean }) => <>{n > 0 ? num(n) : always ? "0" : "—"}</>;
 
+function InfoButton({ r }: { r: PostResultRow }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState("");
+  // several ads: only the active ones (all of them when none is active)
+  const act = r.adList.filter((a) => a.active);
+  const list = r.adList.length > 1 && act.length ? act : r.adList;
+  const copy = (id: string) => { try { navigator.clipboard.writeText(id); setCopied(id); setTimeout(() => setCopied(""), 1200); } catch { /* ignore */ } };
+  return (
+    <>
+      <button onClick={() => setOpen(true)} title="Ad ID" aria-label="Ad ID"
+        style={{ width: 22, height: 22, borderRadius: "50%", border: "1.5px solid var(--border2)", background: "transparent", color: "var(--t2)", fontSize: 12, fontWeight: 700, fontStyle: "italic", fontFamily: "serif", cursor: "pointer", padding: 0 }}>i</button>
+      {open && (
+        <div className="overlay" onClick={() => setOpen(false)}>
+          <div className="modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginBottom: 10 }} dir="auto">{r.name}</h2>
+            {list.map((a) => (
+              <div key={a.id} style={{ padding: "8px 0", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ width: 9, height: 9, borderRadius: "50%", flex: "none", background: a.active ? "var(--green)" : "#8a8f9c" }} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  {a.adset && <div className="sm" dir="auto">{a.adset}</div>}
+                  <div dir="ltr" style={{ fontWeight: 700, userSelect: "all", textAlign: "left" }}>{a.id}</div>
+                </div>
+                <button className="btn" style={{ padding: "4px 12px", fontSize: 12 }} onClick={() => copy(a.id)}>{copied === a.id ? "Copied" : "Copy"}</button>
+              </div>
+            ))}
+            <div className="acts"><button className="btn" onClick={() => setOpen(false)}>Close</button></div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function Section({ title, list, children }: { title: string; list: PostResultRow[]; children: ReactNode }) {
   if (list.length === 0) return null;
   return (
@@ -118,7 +151,7 @@ export default function PostResults({ clientId }: { clientId: string }) {
 
       <Section title="Sales" list={sales}>
         <table className="bt">
-          <thead><tr><th>Post</th><th>Spend</th><th>Reach</th><th>Results</th><th>Cost</th><th>Follows</th><th>Orders</th><th>Verdict</th></tr></thead>
+          <thead><tr><th>Post</th><th>Spend</th><th>Reach</th><th>Results</th><th>Cost</th><th>Follows</th><th>Orders</th><th>Verdict</th><th></th></tr></thead>
           <tbody>{sales.map((r) => (
             <tr key={r.key}>
               <td><PostCell r={r} /></td><td>{money(r.spend)}</td><td>{num(r.reach)}</td>
@@ -126,6 +159,7 @@ export default function PostResults({ clientId }: { clientId: string }) {
               <td><Follows n={r.follows} /></td>
               <td><OrdersInput clientId={clientId} r={r} /></td>
               <td><VerdictDots clientId={clientId} r={r} /></td>
+              <td><InfoButton r={r} /></td>
             </tr>
           ))}</tbody>
         </table>
@@ -133,13 +167,14 @@ export default function PostResults({ clientId }: { clientId: string }) {
 
       <Section title="Followers" list={followers}>
         <table className="bt">
-          <thead><tr><th>Post</th><th>Spend</th><th>Reach</th><th>Visits</th><th>Cost / visit</th><th>Follows</th><th>Verdict</th></tr></thead>
+          <thead><tr><th>Post</th><th>Spend</th><th>Reach</th><th>Visits</th><th>Cost / visit</th><th>Follows</th><th>Verdict</th><th></th></tr></thead>
           <tbody>{followers.map((r) => (
             <tr key={r.key}>
               <td><PostCell r={r} /></td><td>{money(r.spend)}</td><td>{num(r.reach)}</td>
               <td>{num(r.result)}</td><td>{cost(r.spend, r.result)}</td>
               <td><Follows n={r.follows} always /></td>
               <td><VerdictDots clientId={clientId} r={r} /></td>
+              <td><InfoButton r={r} /></td>
             </tr>
           ))}</tbody>
         </table>
@@ -147,13 +182,14 @@ export default function PostResults({ clientId }: { clientId: string }) {
 
       <Section title="Awareness" list={aware}>
         <table className="bt">
-          <thead><tr><th>Post</th><th>Type</th><th>Spend</th><th>Reach</th><th>Results</th><th>Cost</th><th>Follows</th><th>Verdict</th></tr></thead>
+          <thead><tr><th>Post</th><th>Type</th><th>Spend</th><th>Reach</th><th>Results</th><th>Cost</th><th>Follows</th><th>Verdict</th><th></th></tr></thead>
           <tbody>{aware.map((r) => (
             <tr key={r.key}>
               <td><PostCell r={r} /></td><td>{TYPE_LABEL[r.type]}</td><td>{money(r.spend)}</td><td>{num(r.reach)}</td><td>{num(r.result)}</td>
               <td>{r.type === "reach" ? (r.result > 0 ? "$" + ((r.spend / r.result) * 1000).toFixed(2) + " /1K" : "—") : cost(r.spend, r.result)}</td>
               <td><Follows n={r.follows} /></td>
               <td><VerdictDots clientId={clientId} r={r} /></td>
+              <td><InfoButton r={r} /></td>
             </tr>
           ))}</tbody>
         </table>
@@ -161,8 +197,8 @@ export default function PostResults({ clientId }: { clientId: string }) {
 
       <Section title="Other" list={other}>
         <table className="bt">
-          <thead><tr><th>Ad</th><th>Spend</th><th>Reach</th><th>Follows</th><th>Verdict</th></tr></thead>
-          <tbody>{other.map((r) => <tr key={r.key}><td><PostCell r={r} /></td><td>{money(r.spend)}</td><td>{num(r.reach)}</td><td><Follows n={r.follows} /></td><td><VerdictDots clientId={clientId} r={r} /></td></tr>)}</tbody>
+          <thead><tr><th>Ad</th><th>Spend</th><th>Reach</th><th>Follows</th><th>Verdict</th><th></th></tr></thead>
+          <tbody>{other.map((r) => <tr key={r.key}><td><PostCell r={r} /></td><td>{money(r.spend)}</td><td>{num(r.reach)}</td><td><Follows n={r.follows} /></td><td><VerdictDots clientId={clientId} r={r} /></td><td><InfoButton r={r} /></td></tr>)}</tbody>
         </table>
       </Section>
     </>
