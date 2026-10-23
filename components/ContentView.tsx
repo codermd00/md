@@ -3,6 +3,7 @@ import { writeCid } from "@/lib/cid-client";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import WatchButton from "./WatchButton";
+import PostResults from "./PostResults";
 import { duplicatePost, hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
 
 export type PostCard = {
@@ -22,6 +23,7 @@ const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
 export default function ContentView({ clients, posts, initialClient = "" }: { initialClient?: string; clients: { id: string; name: string; hasIg: boolean; watch: boolean }[]; posts: PostCard[] }) {
   const router = useRouter();
+  const [view, setView] = useState<"posts" | "results">("posts");
   const [tab, setTab] = useState<(typeof TABS)[number][0]>("all");
   const [client, setClient] = useState(initialClient);
   const [q, setQ] = useState("");
@@ -46,9 +48,9 @@ export default function ContentView({ clients, posts, initialClient = "" }: { in
             <option value="">All clients</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <input placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 140, padding: "7px 10px", fontSize: 13 }} />
-          <button className="btn" onClick={() => refresh()} disabled={pending}>{pending ? "..." : "Refresh"}</button>
-          {client && (
+          {view === "posts" && <input placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 140, padding: "7px 10px", fontSize: 13 }} />}
+          {view === "posts" && <button className="btn" onClick={() => refresh()} disabled={pending}>{pending ? "..." : "Refresh"}</button>}
+          {view === "posts" && client && (
             <>
               <input type="number" min={1} max={50} value={n} onChange={(e) => setN(e.target.value)} style={{ width: 64, padding: "7px 10px", fontSize: 13 }} />
               <button className="btn" onClick={() => refresh(Math.min(Math.max(parseInt(n) || 1, 1), 50))} disabled={pending}>Fetch last {parseInt(n) || 1}</button>
@@ -57,6 +59,13 @@ export default function ContentView({ clients, posts, initialClient = "" }: { in
         </div>
       </div>
 
+      <div className="btabs" style={{ marginTop: 0, marginBottom: 12 }}>
+        <span className={`btab ${view === "posts" ? "on" : ""}`} onClick={() => setView("posts")}>Posts</span>
+        <span className={`btab ${view === "results" ? "on" : ""}`} onClick={() => setView("results")}>Results</span>
+      </div>
+
+      {view === "results" ? <PostResults clientId={client} /> : (
+        <>
       {noIg.length > 0 && <div className="fnd warn" style={{ marginBottom: 12 }}><b>No Instagram ID: {noIg.map((c) => c.name).join(", ")}</b></div>}
       {msg && <div className="fnd warn" style={{ marginBottom: 12 }}><div className="c" dir="auto">{msg}</div></div>}
 
@@ -84,6 +93,9 @@ export default function ContentView({ clients, posts, initialClient = "" }: { in
             </div>
           ))}
         </div>
+      )}
+
+        </>
       )}
 
       {sel && <PostModal key={sel.id} post={sel} onClose={() => setSel(null)} onDone={() => { setSel(null); router.refresh(); }} />}

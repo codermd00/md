@@ -8,7 +8,8 @@ export const toLatinDigits = (t: string) => t.replace(/[٠-٩]/g, (d) => String(
 
 /** استخراج الهاتف العراقي وتطبيعه إلى +964… وإرجاع النص دونه */
 export function extractPhone(original: string): { phone: string | null; cleaned: string } {
-  const latin = toLatinDigits(original);
+  // drop invisible direction marks / zero-width chars and non-breaking spaces that chat apps insert around numbers
+  const latin = toLatinDigits(original).replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, "").replace(/\u00A0/g, " ");
   const m = latin.match(/(?:\+?964|0)?\s*7[5789]\s*\d(?:\s*\d){7}\b/g);
   if (m && m[0]) {
     const found = m[0];
@@ -179,7 +180,22 @@ if (typeof Deno !== "undefined") {
       const unmatched = results.includes("unmatched");
       await db.from("webhook_log").insert({
         kind: unmatched ? "unmatched" : "ok",
-        payload: unmatched ? payload : { results },
+        payload: unmatched ? payload : {
+          results,
+          // diagnostics only (no message text): which platform/page and what each event looked like
+          object: payload.object,
+          entries: (payload.entry || []).map((e: any) => ({
+            id: e.id,
+            events: (e.messaging || []).map((ev: any) => ({
+              keys: Object.keys(ev).filter((k) => k !== "sender" && k !== "recipient" && k !== "timestamp"),
+              text: !!ev.message?.text, echo: !!ev.message?.is_echo, attach: !!ev.message?.attachments?.length,
+              ref: !!(ev.message?.referral || ev.referral),
+              sample: String(ev.message?.text || "").slice(0, 40),
+              odd: [...String(ev.message?.text || "").slice(0, 40)].map((c) => c.charCodeAt(0)).filter((c) => c > 127 || c < 32),
+            })),
+            changes: (e.changes || []).map((c: any) => c.field),
+          })),
+        },
         error: unmatched ? "page/ig id غير مربوط بأي عميل (راجع page_id في Clients)" : null,
       });
       if (Math.random() < 0.01) await db.from("webhook_log").delete().lt("created_at", new Date(Date.now() - 7 * 86400000).toISOString());
