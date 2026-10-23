@@ -18,7 +18,10 @@ function PostCell({ r }: { r: PostResultRow }) {
   const sub = [r.dark ? "Offer" : "", MEDIA[r.mediaType] || "", day(r.postedAt), r.ads > 1 ? `${r.ads} ads` : ""].filter(Boolean).join(" · ");
   const inner = (
     <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 150 }}>
-      <div className="pimg" style={{ width: 36, height: 36, flex: "none", borderRadius: 8, overflow: "hidden" }}>{r.thumb ? <img src={r.thumb} alt="" loading="lazy" /> : <span>—</span>}</div>
+      <div style={{ position: "relative", width: 36, height: 36, flex: "none" }}>
+        <div className="pimg" style={{ width: 36, height: 36, borderRadius: 8, overflow: "hidden" }}>{r.thumb ? <img src={r.thumb} alt="" loading="lazy" /> : <span>—</span>}</div>
+        <span title={r.active ? "Running" : "Paused"} style={{ position: "absolute", top: -3, left: -3, width: 10, height: 10, borderRadius: "50%", background: r.active ? "var(--green)" : "#8a8f9c", border: "2px solid var(--surface)" }} />
+      </div>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 700 }} dir="auto">{r.name}</div>
         {sub && <div className="sm">{sub}</div>}

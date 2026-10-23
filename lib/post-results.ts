@@ -19,18 +19,22 @@ export function codeOf(adName: string, known: Set<string>): string | null {
 
 export type Agg = {
   key: string; code: string | null; name: string; dark: boolean; type: CampaignType; goal: Goal;
-  ads: number; spend: number; result: number; visits: number; follows: number; reach: number; impressions: number; thumb: string;
+  ads: number; spend: number; result: number; visits: number; follows: number; reach: number; impressions: number; thumb: string; active: boolean;
 };
 
 /** Ad creative thumbnails (best effort): ad id -> image url. Used when the post is not saved in Content Manager. */
-async function adThumbs(adIds: string[]): Promise<Map<string, string>> {
+async function adInfo(adIds: string[]): Promise<{ thumbs: Map<string, string>; active: Set<string> }> {
   const out = new Map<string, string>();
+  const active = new Set<string>();
   try {
     const uniq = [...new Set(adIds)];
     const creativeOf = new Map<string, string>();
     for (let i = 0; i < uniq.length; i += 50) {
-      const r = await graph<Record<string, any>>("", { ids: uniq.slice(i, i + 50).join(","), fields: "creative{id}" });
-      for (const [adId, v] of Object.entries(r)) if (v?.creative?.id) creativeOf.set(adId, String(v.creative.id));
+      const r = await graph<Record<string, any>>("", { ids: uniq.slice(i, i + 50).join(","), fields: "creative{id},effective_status" });
+      for (const [adId, v] of Object.entries(r)) {
+        if (v?.creative?.id) creativeOf.set(adId, String(v.creative.id));
+        if (v?.effective_status === "ACTIVE") active.add(adId);
+      }
     }
     const cids = [...new Set(creativeOf.values())];
     const urlOf = new Map<string, string>();
@@ -39,8 +43,8 @@ async function adThumbs(adIds: string[]): Promise<Map<string, string>> {
       for (const [cid, v] of Object.entries(r)) if (v?.thumbnail_url) urlOf.set(cid, String(v.thumbnail_url));
     }
     for (const [adId, cid] of creativeOf) { const u = urlOf.get(cid); if (u) out.set(adId, u); }
-  } catch { /* thumbnails are optional */ }
-  return out;
+  } catch { /* thumbnails and status are optional */ }
+  return { thumbs: out, active };
 }
 
 type AdRow = { ad_id: string; ad_name: string; campaign_id: string; spend?: string; impressions?: string; reach?: string; instagram_profile_visits?: string };
@@ -65,7 +69,7 @@ export async function pullPostResults(
     for (const r of fr) follows.set(String(r.ad_id), (follows.get(String(r.ad_id)) || 0) + followsOf(r));
   } catch { /* optional */ }
 
-  const thumbs = await adThumbs((rows as AdRow[]).filter((r) => Number(r.spend) > 0).map((r) => String(r.ad_id)));
+  const { thumbs, active } = await adInfo((rows as AdRow[]).filter((r) => Number(r.spend) > 0).map((r) => String(r.ad_id)));
   const out = new Map<string, Agg>();
   for (const r of rows as AdRow[]) {
     const spend = Number(r.spend) || 0;
@@ -76,7 +80,8 @@ export async function pullPostResults(
     const code = dark ? null : codeOf(name, knownCodes);
     const base = dark ? "dark:" + name.trim().toLowerCase() : code || "name:" + name.trim().toLowerCase();
     const key = base + "|" + type;
-    const a = out.get(key) || { key, code, name: dark || !code ? name.trim() : code, dark, type, goal: dark ? "sales" : goalOfType(type), ads: 0, spend: 0, result: 0, visits: 0, follows: 0, reach: 0, impressions: 0, thumb: "" } as Agg;
+    const a = out.get(key) || { key, code, name: dark || !code ? name.trim() : code, dark, type, goal: dark ? "sales" : goalOfType(type), ads: 0, spend: 0, result: 0, visits: 0, follows: 0, reach: 0, impressions: 0, thumb: "", active: false } as Agg;
+    if (active.has(String(r.ad_id))) a.active = true;
     if (!a.thumb) a.thumb = thumbs.get(String(r.ad_id)) || "";
     a.ads += 1; a.spend += spend; a.result += resultFor(type, r as any);
     a.visits += Number(r.instagram_profile_visits) || 0; a.follows += follows.get(String(r.ad_id)) || 0;
