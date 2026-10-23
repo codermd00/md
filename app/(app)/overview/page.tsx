@@ -54,6 +54,7 @@ export default async function OverviewPage() {
   const cs: any[] = camps || [];
   const { data: seenRows } = await sb.from("attention_seen").select("campaign_id,period_start,spend_at_seen");
   const seenMap = new Map<string, any>(((seenRows as any[]) || []).map((x) => [x.campaign_id, x]));
+  const { data: reviewRows } = await sb.from("post_reviews").select("client_id,reviewed_at");
   const nameOf = new Map(cl.map((c) => [c.id, c.name]));
 
   const campIds = cs.map((k) => k.id);
@@ -109,6 +110,11 @@ export default async function OverviewPage() {
   for (const l of (logs || []) as any[]) if (l.client_id && !l.ok && !failed.has(l.client_id)) failed.set(l.client_id, l.detail || "");
   const okRecent = new Set((logs || []).filter((l: any) => l.ok && l.client_id).map((l: any) => l.client_id));
   for (const [id, d] of failed) if (!okRecent.has(id)) items.push({ level: "warn", client: nameOf.get(id) || "—", clientId: id, text: `Sync failed: ${d.slice(0, 90)}` });
+  // weekly content review: only for clients reviewed at least once, and overdue after 7 days
+  for (const rv of ((reviewRows as any[]) || [])) {
+    const days = Math.floor((Date.now() - new Date(rv.reviewed_at).getTime()) / 86400000);
+    if (days >= 7 && nameOf.has(rv.client_id)) items.push({ level: "warn", client: String(nameOf.get(rv.client_id)), clientId: rv.client_id, text: `Content review due (${days}d)` });
+  }
   for (const c of cl) {
     const d = daysLeft(c.period_end, today);
     if (c.period_end && c.period_end >= today && d !== null && d <= 3) {
