@@ -1,11 +1,15 @@
 "use client";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
-import { loadPostResults, saveOrders, type PostResultRow, type PostResultsOut, type RangeKey } from "@/app/(app)/content/results-actions";
+import { loadPostResults, saveOrders, saveVerdict, type PostResultRow, type PostResultsOut, type RangeKey, type Verdict } from "@/app/(app)/content/results-actions";
 import { TYPE_LABEL } from "@/lib/results";
 
 const RANGES: [RangeKey, string][] = [["period", "Period"], ["7d", "7 days"], ["30d", "30 days"]];
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: n < 10 ? 2 : 0 });
-const cost = (spend: number, n: number) => (n > 0 ? "$" + (spend / n < 0.01 ? (spend / n).toFixed(3) : (spend / n).toFixed(2)) : "—");
+const cost = (spend: number, n: number) => {
+  if (!(n > 0)) return "—";
+  const v = spend / n;
+  return "$" + (v < 0.001 ? v.toFixed(4) : v < 0.01 ? v.toFixed(3) : v.toFixed(2));
+};
 const num = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 const MEDIA: Record<string, string> = { IMAGE: "Image", VIDEO: "Video", CAROUSEL_ALBUM: "Carousel" };
@@ -39,6 +43,30 @@ function OrdersInput({ clientId, r }: { clientId: string; r: PostResultRow }) {
     style={{ width: 70, padding: "5px 8px", fontSize: 13, ...(err ? { borderColor: "var(--red)" } : {}) }} />;
 }
 
+const VERDICTS: [Verdict, string, string][] = [["good", "var(--green)", "Strong"], ["mid", "var(--orange)", "Average"], ["bad", "var(--red)", "Weak"]];
+
+function VerdictDots({ clientId, r }: { clientId: string; r: PostResultRow }) {
+  const [v, setV] = useState<Verdict | null>(r.verdict);
+  const [, start] = useTransition();
+  useEffect(() => setV(r.verdict), [r.verdict, r.key]);
+  const pick = (x: Verdict) => {
+    const next = v === x ? null : x;
+    setV(next);
+    start(async () => { const res = await saveVerdict(clientId, r.key, next || ""); if (!res.ok) setV(v); });
+  };
+  return (
+    <div style={{ display: "flex", gap: 7 }}>
+      {VERDICTS.map(([k, color, label]) => (
+        <button key={k} title={label} aria-label={label} onClick={() => pick(k)}
+          style={{ width: 20, height: 20, borderRadius: "50%", cursor: "pointer", padding: 0, border: `2px solid ${color}`, background: v === k ? color : "transparent", opacity: v && v !== k ? 0.35 : 1 }} />
+      ))}
+    </div>
+  );
+}
+
+const Follows = ({ n, always }: { n: number; always?: boolean }) =>
+  n > 0 ? <b style={{ color: "var(--green)" }}>{num(n)}</b> : <>{always ? "0" : "—"}</>;
+
 function Section({ title, list, children }: { title: string; list: PostResultRow[]; children: ReactNode }) {
   if (list.length === 0) return null;
   return (
@@ -68,7 +96,8 @@ export default function PostResults({ clientId }: { clientId: string }) {
   const rows = data?.rows || [];
   const sales = rows.filter((r) => r.goal === "sales");
   const followers = rows.filter((r) => r.goal === "followers");
-  const aware = rows.filter((r) => r.goal === "awareness");
+  const TYPE_ORDER: Record<string, number> = { reach: 0, engagement: 1, thruplay: 2 };
+  const aware = rows.filter((r) => r.goal === "awareness").sort((a, b) => (TYPE_ORDER[a.type] ?? 9) - (TYPE_ORDER[b.type] ?? 9) || b.spend - a.spend);
   const other = rows.filter((r) => r.goal === "other");
 
   return (
@@ -87,13 +116,14 @@ export default function PostResults({ clientId }: { clientId: string }) {
 
       <Section title="Sales" list={sales}>
         <table className="bt">
-          <thead><tr><th>Post</th><th>Spend</th><th>Results</th><th>Cost</th><th>Orders</th><th>Cost / order</th></tr></thead>
+          <thead><tr><th>Post</th><th>Spend</th><th>Reach</th><th>Results</th><th>Cost</th><th>Follows</th><th>Orders</th><th>Verdict</th></tr></thead>
           <tbody>{sales.map((r) => (
             <tr key={r.key}>
-              <td><PostCell r={r} /></td><td>{money(r.spend)}</td>
+              <td><PostCell r={r} /></td><td>{money(r.spend)}</td><td>{num(r.reach)}</td>
               <td>{num(r.result)} <span className="sm">{TYPE_LABEL[r.type]}</span></td><td>{cost(r.spend, r.result)}</td>
+              <td><Follows n={r.follows} /></td>
               <td><OrdersInput clientId={clientId} r={r} /></td>
-              <td>{r.orders ? cost(r.spend, r.orders) : "—"}</td>
+              <td><VerdictDots clientId={clientId} r={r} /></td>
             </tr>
           ))}</tbody>
         </table>
@@ -101,13 +131,13 @@ export default function PostResults({ clientId }: { clientId: string }) {
 
       <Section title="Followers" list={followers}>
         <table className="bt">
-          <thead><tr><th>Post</th><th>Spend</th><th>Visits</th><th>Cost / visit</th><th>Follows</th><th>Cost / follow</th><th>Follow rate</th></tr></thead>
+          <thead><tr><th>Post</th><th>Spend</th><th>Reach</th><th>Visits</th><th>Cost / visit</th><th>Follows</th><th>Verdict</th></tr></thead>
           <tbody>{followers.map((r) => (
             <tr key={r.key}>
-              <td><PostCell r={r} /></td><td>{money(r.spend)}</td>
+              <td><PostCell r={r} /></td><td>{money(r.spend)}</td><td>{num(r.reach)}</td>
               <td>{num(r.result)}</td><td>{cost(r.spend, r.result)}</td>
-              <td>{num(r.follows)}</td><td>{cost(r.spend, r.follows)}</td>
-              <td>{r.result > 0 ? ((r.follows / r.result) * 100).toFixed(1) + "%" : "—"}</td>
+              <td><Follows n={r.follows} always /></td>
+              <td><VerdictDots clientId={clientId} r={r} /></td>
             </tr>
           ))}</tbody>
         </table>
@@ -115,11 +145,13 @@ export default function PostResults({ clientId }: { clientId: string }) {
 
       <Section title="Awareness" list={aware}>
         <table className="bt">
-          <thead><tr><th>Post</th><th>Type</th><th>Spend</th><th>Results</th><th>Cost</th></tr></thead>
+          <thead><tr><th>Post</th><th>Type</th><th>Spend</th><th>Reach</th><th>Results</th><th>Cost</th><th>Follows</th><th>Verdict</th></tr></thead>
           <tbody>{aware.map((r) => (
             <tr key={r.key}>
-              <td><PostCell r={r} /></td><td>{TYPE_LABEL[r.type]}</td><td>{money(r.spend)}</td><td>{num(r.result)}</td>
+              <td><PostCell r={r} /></td><td>{TYPE_LABEL[r.type]}</td><td>{money(r.spend)}</td><td>{num(r.reach)}</td><td>{num(r.result)}</td>
               <td>{r.type === "reach" ? (r.result > 0 ? "$" + ((r.spend / r.result) * 1000).toFixed(2) + " /1K" : "—") : cost(r.spend, r.result)}</td>
+              <td><Follows n={r.follows} /></td>
+              <td><VerdictDots clientId={clientId} r={r} /></td>
             </tr>
           ))}</tbody>
         </table>
@@ -127,8 +159,8 @@ export default function PostResults({ clientId }: { clientId: string }) {
 
       <Section title="Other" list={other}>
         <table className="bt">
-          <thead><tr><th>Ad</th><th>Spend</th></tr></thead>
-          <tbody>{other.map((r) => <tr key={r.key}><td><PostCell r={r} /></td><td>{money(r.spend)}</td></tr>)}</tbody>
+          <thead><tr><th>Ad</th><th>Spend</th><th>Reach</th><th>Follows</th><th>Verdict</th></tr></thead>
+          <tbody>{other.map((r) => <tr key={r.key}><td><PostCell r={r} /></td><td>{money(r.spend)}</td><td>{num(r.reach)}</td><td><Follows n={r.follows} /></td><td><VerdictDots clientId={clientId} r={r} /></td></tr>)}</tbody>
         </table>
       </Section>
     </>

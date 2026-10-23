@@ -52,7 +52,7 @@ export async function pullPostResults(
     const type = campTypes.get(String(r.campaign_id)) || "other";
     const dark = /dark/i.test(name);
     const code = dark ? null : codeOf(name, knownCodes);
-    const base = dark ? "dark:" + name.trim().toLowerCase() : code || "name:" + name.trim();
+    const base = dark ? "dark:" + name.trim().toLowerCase() : code || "name:" + name.trim().toLowerCase();
     const key = base + "|" + type;
     const a = out.get(key) || { key, code, name: dark || !code ? name.trim() : code, dark, type, goal: dark ? "sales" : goalOfType(type), ads: 0, spend: 0, result: 0, visits: 0, follows: 0, reach: 0, impressions: 0 } as Agg;
     a.ads += 1; a.spend += spend; a.result += resultFor(type, r as any);
