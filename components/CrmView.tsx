@@ -10,7 +10,7 @@ export type OrderRow = { id: string; phone: string; day: string; address: string
 export type GovRow = { name: string; orders: number; share: number; spend: number | null; costOrder: number | null };
 export type DayRow = { day: string; orders: number; msgs: number };
 export type Health = { url: string; lastEvent: string | null; events24h: number; problems: { kind: string; error: string; at: string; entryId?: string; object?: string }[] };
-type Kpi = { metaMsgs: number; metaLeads: number; costLead: number | null; convs: number; orders: number; spend: number; rate: number | null; costOrder: number | null; hasMsgCampaigns: boolean };
+type Kpi = { ig: number; fb: number; metaMsgs: number; metaLeads: number; costLead: number | null; convs: number; orders: number; spend: number; rate: number | null; costOrder: number | null; hasMsgCampaigns: boolean };
 
 const money = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const num = (n: number) => Math.round(n).toLocaleString("en-US");
@@ -124,7 +124,7 @@ export default function CrmView(p: {
 
       {p.kpi && (
         <div className="kpis" style={{ gridTemplateColumns: "repeat(4,minmax(0,1fr))" }}>
-          <div className="kpi"><div className="l">Orders (CRM)</div><div className="v">{num(p.kpi.orders)}</div></div>
+          <div className="kpi"><div className="l">Orders (CRM)</div><div className="v">{num(p.kpi.orders)}</div><div className="n">IG: {num(p.kpi.ig)} · FB: {num(p.kpi.fb)}</div></div>
           <div className="kpi"><div className="l">Meta messages</div><div className="v">{p.kpi.hasMsgCampaigns ? num(p.kpi.metaMsgs) : "—"}</div><div className="n">CRM: {num(p.kpi.convs)}</div></div>
           <div className="kpi"><div className="l">Meta leads</div><div className="v">{p.kpi.hasMsgCampaigns ? num(p.kpi.metaLeads) : "—"}</div><div className="n">{p.kpi.costLead !== null ? `CPL ${money(p.kpi.costLead)}` : ""}</div></div>
           <div className="kpi"><div className="l">Order rate</div><div className="v">{p.kpi.rate !== null ? p.kpi.rate.toFixed(1) + "%" : "—"}</div></div>

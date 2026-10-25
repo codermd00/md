@@ -24,7 +24,7 @@ const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 export default function ContentView({ clients, posts, initialClient = "" }: { initialClient?: string; clients: { id: string; name: string; hasIg: boolean; watch: boolean }[]; posts: PostCard[] }) {
   const router = useRouter();
   const [view, setView] = useState<"posts" | "results">("posts");
-  const [tab, setTab] = useState<(typeof TABS)[number][0]>("all");
+  const [tab, setTab] = useState<(typeof TABS)[number][0]>("ready");
   const [client, setClient] = useState(initialClient);
   const [q, setQ] = useState("");
   const [n, setN] = useState("5");

@@ -57,7 +57,7 @@ export default async function CrmPage({ searchParams }: { searchParams: { client
   const sync = { lastOk: client.synced_at as string | null, failed: lastLog?.[0] && !lastLog[0].ok ? String(lastLog[0].detail || "") : "" };
 
   const [orders, convs, daily, regionRows] = await Promise.all([
-    fetchAll<any>((a, b) => sb.from("crm_orders").select("id,phone,day,address,governorate,ad_id,created_at").eq("client_id", client.id).gte("day", from).lte("day", to).order("day", { ascending: false }).order("created_at", { ascending: false }).range(a, b) as any),
+    fetchAll<any>((a, b) => sb.from("crm_orders").select("id,phone,day,address,governorate,ad_id,platform,created_at").eq("client_id", client.id).gte("day", from).lte("day", to).order("day", { ascending: false }).order("created_at", { ascending: false }).range(a, b) as any),
     fetchAll<any>((a, b) => sb.from("crm_conversations").select("first_day").eq("client_id", client.id).gte("first_day", from).lte("first_day", to).range(a, b) as any),
     msgIds.length
       ? fetchAll<any>((a, b) => sb.from("insights_daily").select("day,spend,results,leads").eq("level", "campaign").in("entity_id", msgIds).gte("day", from).lte("day", to).range(a, b) as any)
@@ -73,6 +73,8 @@ export default async function CrmPage({ searchParams }: { searchParams: { client
   const nOrders = orders.length;
   const kpi = {
     metaMsgs, metaLeads, convs: convs.length, orders: nOrders, spend: metaSpend,
+    ig: orders.filter((o: any) => o.platform === "instagram").length,
+    fb: orders.filter((o: any) => o.platform === "facebook").length,
     rate: metaMsgs > 0 ? (nOrders / metaMsgs) * 100 : null,
     costOrder: nOrders > 0 ? metaSpend / nOrders : null,
     costLead: metaLeads > 0 ? metaSpend / metaLeads : null,

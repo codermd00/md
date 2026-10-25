@@ -79,7 +79,7 @@ async function findClient(db: Db, objectId: string) {
 }
 
 export async function handleMessage(
-  db: Db, clientId: string, senderId: string, text: string, tsMs: number, referral: any
+  db: Db, clientId: string, senderId: string, text: string, tsMs: number, referral: any, platform?: "instagram" | "facebook"
 ): Promise<string> {
   const day = baghdadDay(tsMs);
   const adId: string | null = referral?.ad_id || null;
@@ -116,16 +116,17 @@ export async function handleMessage(
         .not("ad_id", "is", null).order("first_day", { ascending: false }).limit(1);
       ad = conv?.[0]?.ad_id || null; post = conv?.[0]?.post_id || null;
     }
-    const { data: ex } = await db.from("crm_orders").select("id,address,ad_id,post_id").eq("client_id", clientId).eq("phone", phone).eq("day", day).maybeSingle();
+    const { data: ex } = await db.from("crm_orders").select("id,address,ad_id,post_id,platform").eq("client_id", clientId).eq("phone", phone).eq("day", day).maybeSingle();
     if (ex) {
       const patch: Record<string, unknown> = {};
       if (address && !ex.address) { patch.address = address; patch.governorate = gov; }
       if (ad && !ex.ad_id) patch.ad_id = ad;
       if (post && !ex.post_id) patch.post_id = post;
+      if (platform && !ex.platform) patch.platform = platform;
       if (Object.keys(patch).length) await db.from("crm_orders").update(patch).eq("id", ex.id);
       return "order_updated";
     }
-    await db.from("crm_orders").insert({ client_id: clientId, phone, day, sender_id: senderId, address: address || null, governorate: gov, ad_id: ad, post_id: post });
+    await db.from("crm_orders").insert({ client_id: clientId, phone, day, sender_id: senderId, address: address || null, governorate: gov, ad_id: ad, post_id: post, ...(platform ? { platform } : {}) });
     return "order_created";
   }
 
@@ -174,7 +175,7 @@ if (typeof Deno !== "undefined") {
           const sender = ev.sender?.id;
           if (!m || m.is_echo || !m.text || !sender) continue;
           if (!clientId) { results.push("unmatched"); continue; }
-          results.push(await handleMessage(db, clientId, String(sender), String(m.text), Number(ev.timestamp) || Date.now(), m.referral || ev.referral));
+          results.push(await handleMessage(db, clientId, String(sender), String(m.text), Number(ev.timestamp) || Date.now(), m.referral || ev.referral, payload.object === "instagram" ? "instagram" : "facebook"));
         }
       }
       const unmatched = results.includes("unmatched");
