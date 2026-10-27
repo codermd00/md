@@ -154,12 +154,12 @@ export default function PostResults({ clientId }: { clientId: string }) {
 
       <Section title="Sales" list={sales}>
         <table className="bt">
-          <thead><tr><th>Post</th><th>Spend</th><th>Reach</th><th>Results</th><th>Cost</th><th>CPM</th><th>CTR</th><th>Follows</th><th>Orders</th><th>Verdict</th><th></th></tr></thead>
+          <thead><tr><th>Post</th><th>Spend</th><th>Reach</th><th>Results</th><th>Cost</th><th>CPM</th><th>CTR link</th><th>CTR all</th><th>Follows</th><th>Orders</th><th>Verdict</th><th></th></tr></thead>
           <tbody>{sales.map((r) => (
             <tr key={r.key}>
               <td><PostCell r={r} /></td><td>{money(r.spend)}</td><td>{num(r.reach)}</td>
               <td>{num(r.result)} <span className="sm">{TYPE_LABEL[r.type]}</span></td><td>{cost(r.spend, r.result)}</td>
-              <td>{cpm(r.spend, r.impressions)}</td><td>{pct(r.clicks, r.impressions)}</td><td><Follows n={r.follows} /></td>
+              <td>{cpm(r.spend, r.impressions)}</td><td>{pct(r.clicks, r.impressions)}</td><td>{pct(r.clicksAll, r.impressions)}</td><td><Follows n={r.follows} /></td>
               <td><OrdersInput clientId={clientId} r={r} /></td>
               <td><VerdictDots clientId={clientId} r={r} /></td>
               <td><InfoButton r={r} /></td>
@@ -170,12 +170,12 @@ export default function PostResults({ clientId }: { clientId: string }) {
 
       <Section title="Followers" list={followers}>
         <table className="bt">
-          <thead><tr><th>Post</th><th>Spend</th><th>Reach</th><th>Visits</th><th>Cost / visit</th><th>CPM</th><th>CTR</th><th>Follows</th><th>Verdict</th><th></th></tr></thead>
+          <thead><tr><th>Post</th><th>Spend</th><th>Reach</th><th>Visits</th><th>Cost / visit</th><th>CPM</th><th>CTR link</th><th>CTR all</th><th>Follows</th><th>Verdict</th><th></th></tr></thead>
           <tbody>{followers.map((r) => (
             <tr key={r.key}>
               <td><PostCell r={r} /></td><td>{money(r.spend)}</td><td>{num(r.reach)}</td>
               <td>{num(r.result)}</td><td>{cost(r.spend, r.result)}</td>
-              <td>{cpm(r.spend, r.impressions)}</td><td>{pct(r.clicks, r.impressions)}</td><td><Follows n={r.follows} always /></td>
+              <td>{cpm(r.spend, r.impressions)}</td><td>{pct(r.clicks, r.impressions)}</td><td>{pct(r.clicksAll, r.impressions)}</td><td><Follows n={r.follows} always /></td>
               <td><VerdictDots clientId={clientId} r={r} /></td>
               <td><InfoButton r={r} /></td>
             </tr>
@@ -185,12 +185,12 @@ export default function PostResults({ clientId }: { clientId: string }) {
 
       <Section title="Awareness" list={aware}>
         <table className="bt">
-          <thead><tr><th>Post</th><th>Type</th><th>Spend</th><th>Reach</th><th>Results</th><th>Cost</th><th>CPM</th><th>CTR</th><th>Follows</th><th>Verdict</th><th></th></tr></thead>
+          <thead><tr><th>Post</th><th>Type</th><th>Spend</th><th>Reach</th><th>Results</th><th>Cost</th><th>CPM</th><th>CTR link</th><th>CTR all</th><th>Follows</th><th>Verdict</th><th></th></tr></thead>
           <tbody>{aware.map((r) => (
             <tr key={r.key}>
               <td><PostCell r={r} /></td><td>{TYPE_LABEL[r.type]}</td><td>{money(r.spend)}</td><td>{num(r.reach)}</td><td>{num(r.result)}</td>
               <td>{r.type === "reach" ? (r.result > 0 ? "$" + ((r.spend / r.result) * 1000).toFixed(2) + " /1K" : "—") : cost(r.spend, r.result)}</td>
-              <td>{cpm(r.spend, r.impressions)}</td><td>{pct(r.clicks, r.impressions)}</td><td><Follows n={r.follows} /></td>
+              <td>{cpm(r.spend, r.impressions)}</td><td>{pct(r.clicks, r.impressions)}</td><td>{pct(r.clicksAll, r.impressions)}</td><td><Follows n={r.follows} /></td>
               <td><VerdictDots clientId={clientId} r={r} /></td>
               <td><InfoButton r={r} /></td>
             </tr>

@@ -6,7 +6,7 @@ import type { CampaignType } from "@/lib/results";
 
 export type PostResultRow = {
   key: string; ordersKey: string; name: string; dark: boolean; code: string | null; type: CampaignType; goal: Goal;
-  ads: number; spend: number; result: number; visits: number; follows: number; reach: number; impressions: number; clicks: number;
+  ads: number; spend: number; result: number; visits: number; follows: number; reach: number; impressions: number; clicks: number; clicksAll: number;
   thumb: string; permalink: string; postedAt: string | null; mediaType: string; orders: number | null; verdict: Verdict | null; active: boolean; adList: { id: string; adset: string; active: boolean }[];
 };
 export type Verdict = "good" | "mid" | "bad";
@@ -45,7 +45,7 @@ export async function loadPostResults(clientId: string, range: RangeKey): Promis
       const ok = ordersKey(a);
       return {
         key: a.key, ordersKey: ok, name: a.name, dark: a.dark, code: a.code, type: a.type, goal: a.goal,
-        ads: a.ads, spend: a.spend, result: a.result, visits: a.visits, follows: a.follows, reach: a.reach, impressions: a.impressions, clicks: a.clicks,
+        ads: a.ads, spend: a.spend, result: a.result, visits: a.visits, follows: a.follows, reach: a.reach, impressions: a.impressions, clicks: a.clicks, clicksAll: a.clicksAll,
         thumb: p?.thumb_path ? `${base}/storage/v1/object/public/thumbs/${p.thumb_path}` : a.thumb,
         permalink: p?.permalink || (a.code ? `https://www.instagram.com/p/${a.code}/` : ""),
         postedAt: p?.posted_at || null, mediaType: p?.media_type || "",

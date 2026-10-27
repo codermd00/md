@@ -19,7 +19,7 @@ export function codeOf(adName: string, known: Set<string>): string | null {
 
 export type Agg = {
   key: string; code: string | null; name: string; dark: boolean; type: CampaignType; goal: Goal;
-  ads: number; spend: number; result: number; visits: number; follows: number; reach: number; impressions: number; clicks: number; thumb: string; active: boolean; adList: { id: string; adset: string; active: boolean }[];
+  ads: number; spend: number; result: number; visits: number; follows: number; reach: number; impressions: number; clicks: number; clicksAll: number; thumb: string; active: boolean; adList: { id: string; adset: string; active: boolean }[];
 };
 
 /** Ad creative thumbnails (best effort): ad id -> image url. Used when the post is not saved in Content Manager. */
@@ -47,7 +47,7 @@ async function adInfo(adIds: string[]): Promise<{ thumbs: Map<string, string>; a
   return { thumbs: out, active };
 }
 
-type AdRow = { adset_name?: string; ad_id: string; ad_name: string; campaign_id: string; spend?: string; impressions?: string; reach?: string; instagram_profile_visits?: string; inline_link_clicks?: string };
+type AdRow = { adset_name?: string; ad_id: string; ad_name: string; campaign_id: string; spend?: string; impressions?: string; reach?: string; instagram_profile_visits?: string; inline_link_clicks?: string; clicks?: string };
 
 export async function pullPostResults(
   act: string, from: string, to: string,
@@ -56,7 +56,7 @@ export async function pullPostResults(
   const time_range = JSON.stringify({ since: from, until: to });
   const rows = await graphAll<any>(`act_${act}/insights`, {
     level: "ad", time_range,
-    fields: "campaign_id,campaign_name,adset_name,ad_id,ad_name,spend,impressions,reach,actions,instagram_profile_visits,inline_link_clicks,video_thruplay_watched_actions",
+    fields: "campaign_id,campaign_name,adset_name,ad_id,ad_name,spend,impressions,reach,actions,instagram_profile_visits,inline_link_clicks,clicks,video_thruplay_watched_actions",
   }, 30);
 
   // follows are a separate field and need the same attribution setup as Ads Manager (best effort)
@@ -80,7 +80,7 @@ export async function pullPostResults(
     const code = dark ? null : codeOf(name, knownCodes);
     const base = dark ? "dark:" + name.trim().toLowerCase() : code || "name:" + name.trim().toLowerCase();
     const key = base + "|" + type;
-    const a = out.get(key) || { key, code, name: dark || !code ? name.trim() : code, dark, type, goal: dark ? "sales" : goalOfType(type), ads: 0, spend: 0, result: 0, visits: 0, follows: 0, reach: 0, impressions: 0, clicks: 0, thumb: "", active: false, adList: [] } as Agg;
+    const a = out.get(key) || { key, code, name: dark || !code ? name.trim() : code, dark, type, goal: dark ? "sales" : goalOfType(type), ads: 0, spend: 0, result: 0, visits: 0, follows: 0, reach: 0, impressions: 0, clicks: 0, clicksAll: 0, thumb: "", active: false, adList: [] } as Agg;
     const isActive = active.has(String(r.ad_id));
     if (isActive) a.active = true;
     a.adList.push({ id: String(r.ad_id), adset: String(r.adset_name || ""), active: isActive });
@@ -88,7 +88,7 @@ export async function pullPostResults(
     a.ads += 1; a.spend += spend; a.result += resultFor(type, r as any);
     a.visits += Number(r.instagram_profile_visits) || 0; a.follows += follows.get(String(r.ad_id)) || 0;
     a.reach += Number(r.reach) || 0; a.impressions += Number(r.impressions) || 0;
-    a.clicks += Number(r.inline_link_clicks) || 0;
+    a.clicks += Number(r.inline_link_clicks) || 0; a.clicksAll += Number(r.clicks) || 0;
     out.set(key, a);
   }
   return [...out.values()].sort((x, y) => y.spend - x.spend);
