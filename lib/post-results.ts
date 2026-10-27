@@ -19,7 +19,7 @@ export function codeOf(adName: string, known: Set<string>): string | null {
 
 export type Agg = {
   key: string; code: string | null; name: string; dark: boolean; type: CampaignType; goal: Goal;
-  ads: number; spend: number; result: number; visits: number; follows: number; reach: number; impressions: number; clicks: number; views3: number; thruplays: number; thumb: string; active: boolean; adList: { id: string; adset: string; active: boolean }[];
+  ads: number; spend: number; result: number; visits: number; follows: number; reach: number; impressions: number; clicks: number; thumb: string; active: boolean; adList: { id: string; adset: string; active: boolean }[];
 };
 
 /** Ad creative thumbnails (best effort): ad id -> image url. Used when the post is not saved in Content Manager. */
@@ -80,7 +80,7 @@ export async function pullPostResults(
     const code = dark ? null : codeOf(name, knownCodes);
     const base = dark ? "dark:" + name.trim().toLowerCase() : code || "name:" + name.trim().toLowerCase();
     const key = base + "|" + type;
-    const a = out.get(key) || { key, code, name: dark || !code ? name.trim() : code, dark, type, goal: dark ? "sales" : goalOfType(type), ads: 0, spend: 0, result: 0, visits: 0, follows: 0, reach: 0, impressions: 0, clicks: 0, views3: 0, thruplays: 0, thumb: "", active: false, adList: [] } as Agg;
+    const a = out.get(key) || { key, code, name: dark || !code ? name.trim() : code, dark, type, goal: dark ? "sales" : goalOfType(type), ads: 0, spend: 0, result: 0, visits: 0, follows: 0, reach: 0, impressions: 0, clicks: 0, thumb: "", active: false, adList: [] } as Agg;
     const isActive = active.has(String(r.ad_id));
     if (isActive) a.active = true;
     a.adList.push({ id: String(r.ad_id), adset: String(r.adset_name || ""), active: isActive });
@@ -89,8 +89,6 @@ export async function pullPostResults(
     a.visits += Number(r.instagram_profile_visits) || 0; a.follows += follows.get(String(r.ad_id)) || 0;
     a.reach += Number(r.reach) || 0; a.impressions += Number(r.impressions) || 0;
     a.clicks += Number(r.inline_link_clicks) || 0;
-    a.views3 += Number(((r as any).actions || []).find((x: any) => x.action_type === "video_view")?.value) || 0;
-    a.thruplays += Number((r as any).video_thruplay_watched_actions?.[0]?.value) || 0;
     out.set(key, a);
   }
   return [...out.values()].sort((x, y) => y.spend - x.spend);
