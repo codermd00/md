@@ -18,6 +18,26 @@ export type ClientInput = {
   alert_messages: string; alert_engagement: string; alert_reach: string; alert_visit: string; alert_leads: string; alert_thruplay: string;
 };
 
+/** New period: existing campaigns keep their budget and target from their latest earlier period. New campaigns are left for manual entry. */
+async function carryOverGoals(sb: ReturnType<typeof createServerSupabase>, clientId: string, newStart: string) {
+  try {
+    const { data: camps } = await sb.from("campaigns").select("id").eq("client_id", clientId);
+    const ids = (camps || []).map((c: any) => c.id);
+    if (!ids.length) return;
+    const { data: goals } = await sb.from("campaign_goals").select("campaign_id,period_start,budget,target").in("campaign_id", ids).limit(5000);
+    const has = new Set<string>(), last = new Map<string, any>();
+    for (const g of (goals || []) as any[]) {
+      if (g.period_start === newStart) { has.add(g.campaign_id); continue; }
+      if (g.period_start > newStart || (g.budget === null && g.target === null)) continue;
+      const cur = last.get(g.campaign_id);
+      if (!cur || g.period_start > cur.period_start) last.set(g.campaign_id, g);
+    }
+    const rows = [...last.values()].filter((g) => !has.has(g.campaign_id))
+      .map((g) => ({ campaign_id: g.campaign_id, period_start: newStart, budget: g.budget, target: g.target, source: "manual" }));
+    if (rows.length) await sb.from("campaign_goals").insert(rows);
+  } catch { /* optional */ }
+}
+
 export async function saveClient(input: ClientInput): Promise<{ ok: boolean; message: string }> {
   const sb = await requireUser();
   const name = input.name.trim();
@@ -49,7 +69,10 @@ export async function saveClient(input: ClientInput): Promise<{ ok: boolean; mes
     business_type: input.business_type.trim() || null, city: input.city.trim() || null,
   };
   let id = input.id;
+  let oldStart: string | null = null;
   if (id) {
+    const { data: old } = await sb.from("clients").select("period_start").eq("id", id).maybeSingle();
+    oldStart = old?.period_start || null;
     const { error } = await sb.from("clients").update(row).eq("id", id);
     if (error) return { ok: false, message: error.code === "23505" ? "This ad account belongs to another client" : error.message };
   } else {
@@ -57,6 +80,7 @@ export async function saveClient(input: ClientInput): Promise<{ ok: boolean; mes
     if (error) return { ok: false, message: error.code === "23505" ? "This ad account belongs to another client" : error.message };
     id = data.id;
   }
+  if (row.period_start && row.period_start !== oldStart) await carryOverGoals(sb, id!, row.period_start);
   const r = await syncClient(id!);
   revalidatePath("/clients");
   return { ok: true, message: r.ok ? `Saved and synced (${r.detail})` : `Saved, but sync failed: ${r.detail}` };
