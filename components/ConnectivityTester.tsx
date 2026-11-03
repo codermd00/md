@@ -42,12 +42,12 @@ export default function ConnectivityTester() {
           <div className={`msg ${failed ? "err" : ""}`}>
             {failed ? `${failed} check(s) failed` : "All checks passed ✓"}
           </div>
-          {(res.pageId || res.igUserId) && (
+          {(res.pages?.length || res.igs?.length) ? (
             <div style={{ marginTop: 10 }}>
-              {res.pageId && <div className="kv"><span>Page ID</span><span>{res.pageId}</span></div>}
-              {res.igUserId && <div className="kv"><span>Instagram ID</span><span>{res.igUserId} · @{res.igUsername}</span></div>}
+              {res.pages?.map((p) => <div className="kv" key={p.id}><span>Page · {p.name}</span><span>{p.id}</span></div>)}
+              {res.igs?.map((g) => <div className="kv" key={g.id}><span>Instagram</span><span>{g.id} · @{g.username}</span></div>)}
             </div>
-          )}
+          ) : null}
         </>
       )}
     </div>
