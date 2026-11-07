@@ -10,7 +10,7 @@ export const goalOfType = (t: CampaignType): Goal =>
 
 /** Post code at the start of an ad name ("DexKvnIxy_a", "DexKvnIxy_a - Copy"). Known post codes win; otherwise an 11-char mixed-case token. */
 export function codeOf(adName: string, known: Set<string>): string | null {
-  const m = adName.trim().match(/^([A-Za-z0-9_-]{6,12})(?![A-Za-z0-9_-])/);
+  const m = adName.trim().match(/^([A-Za-z0-9_-]{6,40})(?![A-Za-z0-9_-])/);
   if (!m) return null;
   const t = m[1];
   if (known.has(t)) return t;

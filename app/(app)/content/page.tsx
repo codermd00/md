@@ -13,7 +13,7 @@ export default async function ContentPage({ searchParams }: { searchParams: { cl
   const statusOf = new Map((clients || []).map((c: any) => [c.id, c.account_status || ""]));
   const nameOf = new Map((clients || []).map((c: any) => [c.id, c.name]));
   const cards: PostCard[] = (posts || []).filter((p: any) => nameOf.has(p.client_id)).map((p: any) => ({
-    id: p.id, clientId: p.client_id, clientName: nameOf.get(p.client_id) || "", igMediaId: p.ig_media_id, shortcode: p.shortcode || "",
+    platform: p.platform === "facebook" ? "facebook" : "instagram", id: p.id, clientId: p.client_id, clientName: nameOf.get(p.client_id) || "", igMediaId: p.ig_media_id, shortcode: p.shortcode || "",
     permalink: p.permalink || "", mediaType: p.media_type || "", caption: p.caption || "", username: p.username || "",
     thumb: p.thumb_path ? `${base}/storage/v1/object/public/thumbs/${p.thumb_path}` : "", postedAt: p.posted_at,
     eligible: p.eligible, reason: p.ineligible_reason || "", status: p.status, mode: p.mode || "",

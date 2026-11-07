@@ -30,7 +30,8 @@ export async function refreshPosts(clientId?: string, count?: number): Promise<{
 export type TargetAdSet = { id: string; name: string; status: string; goal: string };
 export type TargetCampaign = { id: string; name: string; status: string; adsets: TargetAdSet[] };
 
-const GOALS = new Set(["REACH", "POST_ENGAGEMENT", "IMPRESSIONS", "VISIT_INSTAGRAM_PROFILE"]);
+const GOALS = new Set(["REACH", "POST_ENGAGEMENT", "IMPRESSIONS", "VISIT_INSTAGRAM_PROFILE", "CONVERSATIONS"]);
+const MSG_DEST = /MESSENGER|INSTAGRAM_DIRECT|WHATSAPP|MESSAGING/;
 
 /** حملات (وصول/تفاعل/زيارة بروفايل) ومجموعاتها من Meta مباشرة — تُجلب عند فتح نافذة المنشور */
 export async function listTargets(clientId: string): Promise<{ ok: boolean; message: string; campaigns: TargetCampaign[] }> {
@@ -49,7 +50,7 @@ export async function listTargets(clientId: string): Promise<{ ok: boolean; mess
     const byCamp = new Map<string, TargetCampaign>();
     for (const s of adsets) {
       const goal = String(s.optimization_goal);
-      const okGoal = GOALS.has(goal) || /PROFILE|VISIT/.test(goal) || String(s.destination_type) === "INSTAGRAM_PROFILE";
+      const okGoal = GOALS.has(goal) || /PROFILE|VISIT/.test(goal) || String(s.destination_type) === "INSTAGRAM_PROFILE" || MSG_DEST.test(String(s.destination_type));
       if (!okGoal || !s.campaign?.id) continue;
       const recent = Math.max(Date.parse(s.updated_time || "") || 0, Date.parse(s.created_time || "") || 0) >= since;
       if (!(s.effective_status === "ACTIVE" || spent.has(String(s.id)) || recent)) continue;
@@ -58,7 +59,7 @@ export async function listTargets(clientId: string): Promise<{ ok: boolean; mess
       byCamp.set(s.campaign.id, k);
     }
     const list = [...byCamp.values()].sort((a, b) => (a.status === "ACTIVE" ? 0 : 1) - (b.status === "ACTIVE" ? 0 : 1) || a.name.localeCompare(b.name));
-    return { ok: true, message: list.length ? "" : "No reach, engagement or profile visit campaigns in this account", campaigns: list };
+    return { ok: true, message: list.length ? "" : "No reach, engagement, profile visit or messages campaigns in this account", campaigns: list };
   } catch (e: any) {
     return { ok: false, message: e?.message || "Meta fetch failed", campaigns: [] };
   }
@@ -118,7 +119,7 @@ function validate(p: any, c: any): string {
   if (!p.mode) return "Select a method";
   if (!p.meta_adset_id) return "Select an ad set";
   if (!c.page_id) return "Client has no Page ID (edit in Clients)";
-  if (!c.ig_user_id) return "Client has no Instagram ID";
+  if (p.platform !== "facebook" && !c.ig_user_id) return "Client has no Instagram ID";
   if (p.mode === "copy" && (!(Number(p.budget) > 0) || !(Number(p.days) > 0))) return "Copy mode needs budget and days";
   return "";
 }
@@ -132,7 +133,7 @@ export async function previewRun(id: string): Promise<{ ok: boolean; message: st
   const { p, c } = r;
   const bad = validate(p, c);
   if (bad) return { ok: false, message: bad, lines: [] };
-  const lines = [`Client: ${c.name}`, `Post: ${p.shortcode} (${p.media_type})`, `Campaign: ${p.meta_campaign_name || p.meta_campaign_id}`];
+  const lines = [`Client: ${c.name}`, `Post: ${p.shortcode} (${p.platform === "facebook" ? "Facebook" : p.media_type})`, `Campaign: ${p.meta_campaign_name || p.meta_campaign_id}`];
   if (p.mode === "direct") {
     lines.push(`Method: add ad directly to ad set "${p.meta_adset_name}"`, "Ad set budget and schedule stay unchanged.");
   } else {
@@ -173,8 +174,14 @@ export async function runPost(id: string): Promise<{ ok: boolean; message: strin
   };
 
   // 1) تأكد أن المنشور ما زال موجوداً
-  try { await graph(p.ig_media_id, { fields: "id,shortcode" }); await step(db, id, "verify", true); }
-  catch (e: any) { return fail("verify", e?.message || "", "Post Deleted or Not Found"); }
+  if (p.platform === "facebook") {
+    // reading Page posts may need extra permission: a failed check is logged but does not stop the run (Meta validates the ID when the ad is created)
+    try { await graph(p.ig_media_id, { fields: "id" }); await step(db, id, "verify", true); }
+    catch (e: any) { await step(db, id, "verify", false, e?.message || ""); }
+  } else {
+    try { await graph(p.ig_media_id, { fields: "id,shortcode" }); await step(db, id, "verify", true); }
+    catch (e: any) { return fail("verify", e?.message || "", "Post Deleted or Not Found"); }
+  }
 
   let adsetId: string = p.meta_adset_id;
   let endIso: string | null = null;
@@ -232,10 +239,18 @@ export async function runPost(id: string): Promise<{ ok: boolean; message: strin
   // 3) الكرييتف ثم الإعلان
   let creativeId = "";
   try {
-    const cr = await graphPost<any>(`act_${c.ad_account_id}/adcreatives`, {
-      name: p.shortcode, object_id: c.page_id, instagram_user_id: c.ig_user_id, source_instagram_media_id: p.ig_media_id,
-      call_to_action: { type: "VIEW_INSTAGRAM_PROFILE", value: { link: `https://www.instagram.com/${p.username}/` } },
-    });
+    // messages ad sets need a message button; other ad sets keep the profile button
+    let dest = "";
+    try { dest = String((await graph<any>(adsetId, { fields: "destination_type" })).destination_type || ""); } catch { /* optional */ }
+    const msgCta = /INSTAGRAM_DIRECT/.test(dest) ? { type: "INSTAGRAM_MESSAGE", value: { app_destination: "INSTAGRAM_DIRECT" } }
+      : /WHATSAPP/.test(dest) ? { type: "WHATSAPP_MESSAGE", value: { app_destination: "WHATSAPP" } }
+      : MSG_DEST.test(dest) ? { type: "MESSAGE_PAGE", value: { app_destination: "MESSENGER" } } : null;
+    const cr = await graphPost<any>(`act_${c.ad_account_id}/adcreatives`, p.platform === "facebook"
+      ? { name: p.shortcode, object_story_id: p.ig_media_id }
+      : {
+        name: p.shortcode, object_id: c.page_id, instagram_user_id: c.ig_user_id, source_instagram_media_id: p.ig_media_id,
+        call_to_action: msgCta || { type: "VIEW_INSTAGRAM_PROFILE", value: { link: `https://www.instagram.com/${p.username}/` } },
+      });
     creativeId = String(cr.id);
     await step(db, id, "creative", true, creativeId);
   } catch (e: any) { return fail("creative", e?.message || ""); }
@@ -270,8 +285,57 @@ export async function duplicatePost(id: string): Promise<{ ok: boolean; message:
   const { error } = await sb.from("posts").insert({
     client_id: p.client_id, ig_media_id: p.ig_media_id, shortcode: p.shortcode, permalink: p.permalink, media_type: p.media_type,
     caption: p.caption, username: p.username, thumb_path: p.thumb_path, posted_at: p.posted_at, eligible: p.eligible, ineligible_reason: p.ineligible_reason,
-    status: "ready", budget: p.budget, days: p.days, copy_of: p.copy_of || p.id,
+    platform: p.platform || "instagram", status: "ready", budget: p.budget, days: p.days, copy_of: p.copy_of || p.id,
   });
   revalidatePath("/content");
   return error ? { ok: false, message: error.message } : { ok: true, message: "New copy added as Ready" };
+}
+
+
+/** Add a standalone Facebook Page post by its ID (or link). Ad name = the post ID. */
+export async function addFacebookPost(clientId: string, input: string): Promise<{ ok: boolean; message: string }> {
+  const sb = await requireUser();
+  const db = createAdminSupabase();
+  const { data: c } = await db.from("clients").select("id,page_id").eq("id", clientId).maybeSingle();
+  if (!c) return { ok: false, message: "Client not found" };
+  if (!c.page_id) return { ok: false, message: "Client has no Page ID (edit in Clients)" };
+  const t = input.trim();
+  if (!t) return { ok: false, message: "Enter a post ID" };
+  if (/pfbid/i.test(t)) return { ok: false, message: "pfbid links are not supported. Use the numeric post ID" };
+  let storyId = "";
+  const full = t.match(/(\d{5,})_(\d{5,})/);
+  if (full) storyId = full[0];
+  else {
+    const one = t.match(/(?:posts\/|videos\/|story_fbid=|fbid=|reel\/)(\d{8,})/) || t.match(/^(\d{8,})$/);
+    if (!one) return { ok: false, message: "Could not read a post ID from this" };
+    storyId = `${c.page_id}_${one[1]}`;
+  }
+  const code = storyId.split("_")[1];
+  const { data: dup } = await db.from("posts").select("id").eq("client_id", clientId).eq("ig_media_id", storyId).is("copy_of", null).limit(1);
+  if (dup?.length) return { ok: false, message: "This post is already added" };
+
+  // best effort details (needs permission to read Page posts)
+  let info: any = null;
+  try { info = await graph(storyId, { fields: "id,message,created_time,full_picture,permalink_url" }); } catch { /* optional */ }
+  let thumb: string | null = null;
+  if (info?.full_picture) {
+    try {
+      const res = await fetch(info.full_picture);
+      if (res.ok) {
+        const path = `${clientId}/${storyId}.jpg`;
+        const { error } = await db.storage.from("thumbs").upload(path, Buffer.from(await res.arrayBuffer()), { contentType: res.headers.get("content-type") || "image/jpeg", upsert: true });
+        if (!error) thumb = path;
+      }
+    } catch { /* optional */ }
+  }
+  const { data: setRows } = await db.from("settings").select("key,value").in("key", ["default_budget", "default_days"]);
+  const def = (k: string, d: number) => Number((setRows || []).find((x: any) => x.key === k)?.value) || d;
+  const { error } = await db.from("posts").insert({
+    client_id: clientId, platform: "facebook", ig_media_id: storyId, shortcode: code, media_type: "POST",
+    permalink: info?.permalink_url || `https://www.facebook.com/${storyId}`, caption: info?.message || null, thumb_path: thumb,
+    posted_at: info?.created_time || new Date().toISOString(), eligible: null, status: "ready",
+    budget: def("default_budget", 200), days: def("default_days", 2),
+  });
+  revalidatePath("/content");
+  return error ? { ok: false, message: error.message } : { ok: true, message: info ? "Added" : "Added (details unavailable)" };
 }

@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import WatchButton from "./WatchButton";
 import PostResults from "./PostResults";
-import { duplicatePost, hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
+import { addFacebookPost, duplicatePost, hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
 
 export type PostCard = {
-  id: string; clientId: string; clientName: string; igMediaId: string; shortcode: string; permalink: string; mediaType: string;
+  platform: "instagram" | "facebook"; id: string; clientId: string; clientName: string; igMediaId: string; shortcode: string; permalink: string; mediaType: string;
   caption: string; username: string; thumb: string; postedAt: string | null; eligible: boolean | null; reason: string;
   status: "ready" | "running" | "done" | "skip" | "failed"; mode: "direct" | "copy" | ""; budget: string; days: string;
   campId: string; campName: string; adsetId: string; adsetName: string; error: string; accountStatus: string; hasAd: boolean;
@@ -18,7 +18,7 @@ const ST: Record<string, { label: string; cls: string }> = {
   ready: { label: "Ready", cls: "warn" }, running: { label: "Running", cls: "ok" }, done: { label: "Done", cls: "mute" },
   skip: { label: "Skip", cls: "mute" }, failed: { label: "Failed", cls: "bad" },
 };
-const TYPE: Record<string, string> = { IMAGE: "Image", VIDEO: "Video", CAROUSEL_ALBUM: "Carousel" };
+const TYPE: Record<string, string> = { POST: "Facebook", IMAGE: "Image", VIDEO: "Video", CAROUSEL_ALBUM: "Carousel" };
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
 export default function ContentView({ clients, posts, initialClient = "" }: { initialClient?: string; clients: { id: string; name: string; hasIg: boolean; watch: boolean }[]; posts: PostCard[] }) {
@@ -30,6 +30,7 @@ export default function ContentView({ clients, posts, initialClient = "" }: { in
   const [n, setN] = useState("5");
   const [sel, setSel] = useState<PostCard | null>(null);
   const [msg, setMsg] = useState("");
+  const [fb, setFb] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   const base = useMemo(() => posts.filter((p) => (!client || p.clientId === client) && (!q || (p.shortcode + " " + p.caption + " " + p.clientName).toLowerCase().includes(q.toLowerCase()))), [posts, client, q]);
@@ -54,6 +55,15 @@ export default function ContentView({ clients, posts, initialClient = "" }: { in
             <>
               <input type="number" min={1} max={50} value={n} onChange={(e) => setN(e.target.value)} style={{ width: 64, padding: "7px 10px", fontSize: 13 }} />
               <button className="btn" onClick={() => refresh(Math.min(Math.max(parseInt(n) || 1, 1), 50))} disabled={pending}>Fetch last {parseInt(n) || 1}</button>
+              {fb === null
+                ? <button className="btn" onClick={() => setFb("")}>+ Facebook post</button>
+                : (
+                  <>
+                    <input autoFocus placeholder="Post ID or link" dir="ltr" value={fb} onChange={(e) => setFb(e.target.value)} style={{ width: 170, padding: "7px 10px", fontSize: 13 }} />
+                    <button className="btn pri" disabled={pending || !fb.trim()} onClick={() => start(async () => { const r = await addFacebookPost(client, fb); setMsg(r.ok ? "" : r.message); if (r.ok) { setFb(null); router.refresh(); } })}>Add</button>
+                    <button className="btn" onClick={() => setFb(null)}>×</button>
+                  </>
+                )}
             </>
           )}
         </div>
@@ -158,7 +168,7 @@ function PostModal({ post, onClose, onDone }: { post: PostCard; onClose: () => v
           <div className="pimg" style={{ width: 130, flex: "none", borderRadius: 10 }}>{post.thumb ? <img src={post.thumb} alt="" /> : <span>—</span>}</div>
           <div style={{ minWidth: 0 }}>
             <h2 style={{ marginBottom: 4 }}>{post.clientName}</h2>
-            <div className="sub" style={{ margin: 0 }}>@{post.username} · {TYPE[post.mediaType] || post.mediaType} · {post.shortcode}</div>
+            <div className="sub" style={{ margin: 0 }}>{post.platform === "facebook" ? "Facebook" : `@${post.username} · ${TYPE[post.mediaType] || post.mediaType}`} · {post.shortcode}</div>
             <div style={{ margin: "6px 0" }}>
               <span className={`chip sm ${post.eligible === true ? "ok" : post.eligible === false ? "bad" : "mute"}`}>
                 Check {post.eligible === true ? "✓" : post.eligible === false ? "✗" : "?"}
