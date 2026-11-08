@@ -245,12 +245,24 @@ export async function runPost(id: string): Promise<{ ok: boolean; message: strin
     const msgCta = /INSTAGRAM_DIRECT/.test(dest) ? { type: "INSTAGRAM_MESSAGE", value: { app_destination: "INSTAGRAM_DIRECT" } }
       : /WHATSAPP/.test(dest) ? { type: "WHATSAPP_MESSAGE", value: { app_destination: "WHATSAPP" } }
       : MSG_DEST.test(dest) ? { type: "MESSAGE_PAGE", value: { app_destination: "MESSENGER" } } : null;
-    const cr = await graphPost<any>(`act_${c.ad_account_id}/adcreatives`, p.platform === "facebook"
-      ? { name: p.shortcode, object_story_id: p.ig_media_id }
-      : {
+    let cr: any;
+    if (p.platform === "facebook") {
+      // the same post can be addressed by the saved Page ID or by the owner ID in its link: try each until Meta accepts one
+      const post = String(p.ig_media_id).split("_")[1];
+      const owner2 = String(p.permalink || "").match(/[?&]id=(\d{5,})/)?.[1];
+      const cands = [...new Set([p.ig_media_id, owner2 ? `${owner2}_${post}` : ""].filter(Boolean))];
+      let lastErr: any = null;
+      for (const sid of cands) {
+        try { cr = await graphPost<any>(`act_${c.ad_account_id}/adcreatives`, { name: p.shortcode, object_story_id: sid }); break; }
+        catch (e: any) { lastErr = e; await step(db, id, "creative_try", false, `${sid}: ${e?.message || ""}`); }
+      }
+      if (!cr) throw lastErr || new Error("Creative failed");
+    } else {
+      cr = await graphPost<any>(`act_${c.ad_account_id}/adcreatives`, {
         name: p.shortcode, object_id: c.page_id, instagram_user_id: c.ig_user_id, source_instagram_media_id: p.ig_media_id,
         call_to_action: msgCta || { type: "VIEW_INSTAGRAM_PROFILE", value: { link: `https://www.instagram.com/${p.username}/` } },
       });
+    }
     creativeId = String(cr.id);
     await step(db, id, "creative", true, creativeId);
   } catch (e: any) { return fail("creative", e?.message || ""); }
@@ -310,13 +322,26 @@ export async function addFacebookPost(clientId: string, input: string): Promise<
     if (!one) return { ok: false, message: "Could not read a post ID from this" };
     storyId = `${c.page_id}_${one[1]}`;
   }
-  const code = storyId.split("_")[1];
+  const post0 = storyId.split("_")[1];
   const { data: dup } = await db.from("posts").select("id").eq("client_id", clientId).eq("ig_media_id", storyId).is("copy_of", null).limit(1);
   if (dup?.length) return { ok: false, message: "This post is already added" };
 
-  // best effort details (needs permission to read Page posts)
+  // read the post: try the saved Page ID, then the owner ID in the link; Meta returns the canonical ID to use in ads (promotable_id)
   let info: any = null;
-  try { info = await graph(storyId, { fields: "id,message,created_time,full_picture,permalink_url" }); } catch { /* optional */ }
+  const owner2 = t.match(/[?&]id=(\d{5,})/)?.[1];
+  for (const sid of [...new Set([storyId, owner2 ? `${owner2}_${post0}` : ""].filter(Boolean))]) {
+    try { info = await graph(sid, { fields: "id,message,created_time,full_picture,permalink_url,promotable_id" }); break; } catch { /* try next */ }
+  }
+  if (info) storyId = String(info.promotable_id || info.id || storyId);
+  const code = storyId.split("_")[1] || post0;
+  const { data: dup2 } = await db.from("posts").select("id").eq("client_id", clientId).eq("ig_media_id", storyId).is("copy_of", null).limit(1);
+  if (dup2?.length) return { ok: false, message: "This post is already added" };
+  const r = await saveFbPost(db, clientId, storyId, code, info, /^https?:\/\//i.test(t) ? t : "");
+  revalidatePath("/content");
+  return r.error ? { ok: false, message: r.error } : { ok: true, message: info ? "Added" : "Added (details unavailable)" };
+}
+
+async function saveFbPost(db: any, clientId: string, storyId: string, code: string, info: any, fallbackLink: string): Promise<{ error: string }> {
   let thumb: string | null = null;
   if (info?.full_picture) {
     try {
@@ -330,12 +355,41 @@ export async function addFacebookPost(clientId: string, input: string): Promise<
   }
   const { data: setRows } = await db.from("settings").select("key,value").in("key", ["default_budget", "default_days"]);
   const def = (k: string, d: number) => Number((setRows || []).find((x: any) => x.key === k)?.value) || d;
+  const [owner, post] = storyId.split("_");
   const { error } = await db.from("posts").insert({
     client_id: clientId, platform: "facebook", ig_media_id: storyId, shortcode: code, media_type: "POST",
-    permalink: info?.permalink_url || `https://www.facebook.com/${storyId}`, caption: info?.message || null, thumb_path: thumb,
+    permalink: info?.permalink_url || fallbackLink || `https://www.facebook.com/permalink.php?story_fbid=${post}&id=${owner}`,
+    caption: info?.message || null, thumb_path: thumb,
     posted_at: info?.created_time || new Date().toISOString(), eligible: null, status: "ready",
     budget: def("default_budget", 200), days: def("default_days", 2),
   });
+  return { error: error ? error.message : "" };
+}
+
+/** Fetch the latest Page posts (needs a Page access token, requested from the main token). */
+export async function fetchFacebookPosts(clientId: string, count: number): Promise<{ ok: boolean; message: string }> {
+  await requireUser();
+  const db = createAdminSupabase();
+  const { data: c } = await db.from("clients").select("id,page_id").eq("id", clientId).maybeSingle();
+  if (!c) return { ok: false, message: "Client not found" };
+  if (!c.page_id) return { ok: false, message: "Client has no Page ID (edit in Clients)" };
+  const limit = Math.min(Math.max(Math.round(count) || 1, 1), 50);
+  let list: any[] = [];
+  try {
+    const pt = (await graph<any>(c.page_id, { fields: "access_token" })).access_token;
+    if (!pt) return { ok: false, message: "Meta did not return a Page access token for this page" };
+    const r = await graph<{ data: any[] }>(`${c.page_id}/posts`, { fields: "id,message,created_time,full_picture,permalink_url", limit }, pt);
+    list = r.data || [];
+  } catch (e: any) { return { ok: false, message: e?.message || "Meta request failed" }; }
+  if (!list.length) return { ok: true, message: "No posts found" };
+  const { data: have } = await db.from("posts").select("ig_media_id").eq("client_id", clientId).in("ig_media_id", list.map((m) => m.id));
+  const known = new Set((have || []).map((x: any) => x.ig_media_id));
+  let added = 0; let err = "";
+  for (const m of list) {
+    if (known.has(m.id)) continue;
+    const r = await saveFbPost(db, clientId, String(m.id), String(m.id).split("_")[1] || String(m.id), m, "");
+    if (r.error) err = r.error; else added++;
+  }
   revalidatePath("/content");
-  return error ? { ok: false, message: error.message } : { ok: true, message: info ? "Added" : "Added (details unavailable)" };
+  return err ? { ok: false, message: err } : { ok: true, message: added ? `Added ${added} Facebook post(s)` : "No new posts" };
 }

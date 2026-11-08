@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import WatchButton from "./WatchButton";
 import PostResults from "./PostResults";
-import { addFacebookPost, duplicatePost, hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
+import { addFacebookPost, fetchFacebookPosts, duplicatePost, hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
 
 export type PostCard = {
   platform: "instagram" | "facebook"; id: string; clientId: string; clientName: string; igMediaId: string; shortcode: string; permalink: string; mediaType: string;
@@ -55,6 +55,7 @@ export default function ContentView({ clients, posts, initialClient = "" }: { in
             <>
               <input type="number" min={1} max={50} value={n} onChange={(e) => setN(e.target.value)} style={{ width: 64, padding: "7px 10px", fontSize: 13 }} />
               <button className="btn" onClick={() => refresh(Math.min(Math.max(parseInt(n) || 1, 1), 50))} disabled={pending}>Fetch last {parseInt(n) || 1}</button>
+              <button className="btn" disabled={pending} onClick={() => start(async () => { const r = await fetchFacebookPosts(client, parseInt(n) || 1); setMsg(r.message); router.refresh(); })}>Facebook last {parseInt(n) || 1}</button>
               {fb === null
                 ? <button className="btn" onClick={() => setFb("")}>+ Facebook post</button>
                 : (

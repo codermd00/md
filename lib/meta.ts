@@ -32,9 +32,10 @@ async function metaFetch(url: string): Promise<any> {
 
 export async function graph<T = any>(
   path: string,
-  params: Record<string, string | number | undefined> = {}
+  params: Record<string, string | number | undefined> = {},
+  tokenOverride?: string
 ): Promise<T> {
-  const token = process.env.META_ACCESS_TOKEN;
+  const token = tokenOverride || process.env.META_ACCESS_TOKEN;
   if (!token) throw new MetaError("META_ACCESS_TOKEN not set");
   const url = new URL(`${BASE}/${path.replace(/^\//, "")}`);
   for (const [k, v] of Object.entries(params)) {
