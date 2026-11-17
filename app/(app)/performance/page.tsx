@@ -107,7 +107,8 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
         progress,
       } as CampaignDTO;
     })
-    .filter((k: CampaignDTO) => k.spend > MIN_SPEND || k.goalTarget !== null || k.goalBudget !== null)
+    // this period's campaigns: those that spent in it, or active ones with a goal (a new campaign waiting for its first spend); old paused campaigns with a carried-over goal are hidden
+    .filter((k: CampaignDTO) => k.spend > MIN_SPEND || ((k.goalTarget !== null || k.goalBudget !== null) && k.status === "ACTIVE"))
     .sort((a: CampaignDTO, b: CampaignDTO) => b.spend - a.spend);
 
   const dailyRows: DailyRow[] = daily.map((d: any) => ({

@@ -242,15 +242,20 @@ export async function runPost(id: string): Promise<{ ok: boolean; message: strin
     // messages ad sets need a message button; other ad sets keep the profile button
     let dest = "";
     try { dest = String((await graph<any>(adsetId, { fields: "destination_type" })).destination_type || ""); } catch { /* optional */ }
-    const msgCta = /INSTAGRAM_DIRECT/.test(dest) ? { type: "INSTAGRAM_MESSAGE", value: { app_destination: "INSTAGRAM_DIRECT" } }
-      : /WHATSAPP/.test(dest) ? { type: "WHATSAPP_MESSAGE", value: { app_destination: "WHATSAPP" } }
-      : MSG_DEST.test(dest) ? { type: "MESSAGE_PAGE", value: { app_destination: "MESSENGER" } } : null;
+    // Meta requires a link in the message button (verified in Graph Explorer: with the Instagram profile link it is accepted)
+    const msgCta = /INSTAGRAM_DIRECT/.test(dest) ? { type: "INSTAGRAM_MESSAGE", value: { link: `https://www.instagram.com/${p.username}/`, app_destination: "INSTAGRAM_DIRECT" } }
+      : /WHATSAPP/.test(dest) ? { type: "WHATSAPP_MESSAGE", value: { link: `https://www.instagram.com/${p.username}/`, app_destination: "WHATSAPP" } }
+      : MSG_DEST.test(dest) ? { type: "MESSAGE_PAGE", value: { link: `https://www.facebook.com/${c.page_id}`, app_destination: "MESSENGER" } } : null;
     let cr: any;
     if (p.platform === "facebook") {
       // the same post can be addressed by the saved Page ID or by the owner ID in its link: try each until Meta accepts one
       const post = String(p.ig_media_id).split("_")[1];
       const owner2 = String(p.permalink || "").match(/[?&]id=(\d{5,})/)?.[1];
-      const cands = [...new Set([p.ig_media_id, owner2 ? `${owner2}_${post}` : ""].filter(Boolean))];
+      // Meta's own ID for promoting this post (promotable_id) first; it also tells if the post can be promoted at all
+      const meta = await readFbPost(p.ig_media_id, c.page_id, "id,promotable_id,is_eligible_for_promotion");
+      if (meta?.is_eligible_for_promotion === false) return fail("verify", "Meta says this post can't be promoted", "Facebook post not promotable");
+      const cands = [...new Set([meta?.promotable_id || "", p.ig_media_id, owner2 ? `${owner2}_${post}` : ""].filter(Boolean))];
+      if (meta) await step(db, id, "promotable", true, `${meta.promotable_id || meta.id}`);
       let lastErr: any = null;
       for (const sid of cands) {
         try { cr = await graphPost<any>(`act_${c.ad_account_id}/adcreatives`, { name: p.shortcode, object_story_id: sid }); break; }
@@ -304,6 +309,20 @@ export async function duplicatePost(id: string): Promise<{ ok: boolean; message:
 }
 
 
+const FB_FIELDS = "id,message,created_time,full_picture,permalink_url,promotable_id,is_eligible_for_promotion";
+
+async function pageToken(pageId: string): Promise<string> {
+  try { return String((await graph<any>(pageId, { fields: "access_token" })).access_token || ""); } catch { return ""; }
+}
+
+/** Read one Page post: with the main token first, then with the Page token (some pages only answer to that). */
+async function readFbPost(sid: string, pageId: string, fields: string): Promise<any | null> {
+  try { return await graph(sid, { fields }); } catch { /* try the Page token */ }
+  const pt = await pageToken(pageId);
+  if (!pt) return null;
+  try { return await graph(sid, { fields }, pt); } catch { return null; }
+}
+
 /** Add a standalone Facebook Page post by its ID (or link). Ad name = the post ID. */
 export async function addFacebookPost(clientId: string, input: string): Promise<{ ok: boolean; message: string }> {
   const sb = await requireUser();
@@ -330,7 +349,8 @@ export async function addFacebookPost(clientId: string, input: string): Promise<
   let info: any = null;
   const owner2 = t.match(/[?&]id=(\d{5,})/)?.[1];
   for (const sid of [...new Set([storyId, owner2 ? `${owner2}_${post0}` : ""].filter(Boolean))]) {
-    try { info = await graph(sid, { fields: "id,message,created_time,full_picture,permalink_url,promotable_id" }); break; } catch { /* try next */ }
+    info = await readFbPost(sid, c.page_id, FB_FIELDS);
+    if (info) break;
   }
   if (info) storyId = String(info.promotable_id || info.id || storyId);
   const code = storyId.split("_")[1] || post0;
@@ -360,7 +380,9 @@ async function saveFbPost(db: any, clientId: string, storyId: string, code: stri
     client_id: clientId, platform: "facebook", ig_media_id: storyId, shortcode: code, media_type: "POST",
     permalink: info?.permalink_url || fallbackLink || `https://www.facebook.com/permalink.php?story_fbid=${post}&id=${owner}`,
     caption: info?.message || null, thumb_path: thumb,
-    posted_at: info?.created_time || new Date().toISOString(), eligible: null, status: "ready",
+    posted_at: info?.created_time || new Date().toISOString(),
+    eligible: typeof info?.is_eligible_for_promotion === "boolean" ? info.is_eligible_for_promotion : null,
+    ineligible_reason: info?.is_eligible_for_promotion === false ? "Meta says this post can't be promoted" : null, status: "ready",
     budget: def("default_budget", 200), days: def("default_days", 2),
   });
   return { error: error ? error.message : "" };
@@ -378,16 +400,17 @@ export async function fetchFacebookPosts(clientId: string, count: number): Promi
   try {
     const pt = (await graph<any>(c.page_id, { fields: "access_token" })).access_token;
     if (!pt) return { ok: false, message: "Meta did not return a Page access token for this page" };
-    const r = await graph<{ data: any[] }>(`${c.page_id}/posts`, { fields: "id,message,created_time,full_picture,permalink_url", limit }, pt);
+    const r = await graph<{ data: any[] }>(`${c.page_id}/posts`, { fields: FB_FIELDS, limit }, pt);
     list = r.data || [];
   } catch (e: any) { return { ok: false, message: e?.message || "Meta request failed" }; }
   if (!list.length) return { ok: true, message: "No posts found" };
-  const { data: have } = await db.from("posts").select("ig_media_id").eq("client_id", clientId).in("ig_media_id", list.map((m) => m.id));
+  const sidOf = (m: any) => String(m.promotable_id || m.id);
+  const { data: have } = await db.from("posts").select("ig_media_id").eq("client_id", clientId).in("ig_media_id", [...list.map(sidOf), ...list.map((m) => String(m.id))]);
   const known = new Set((have || []).map((x: any) => x.ig_media_id));
   let added = 0; let err = "";
   for (const m of list) {
-    if (known.has(m.id)) continue;
-    const r = await saveFbPost(db, clientId, String(m.id), String(m.id).split("_")[1] || String(m.id), m, "");
+    if (known.has(sidOf(m)) || known.has(String(m.id))) continue;
+    const r = await saveFbPost(db, clientId, sidOf(m), sidOf(m).split("_")[1] || sidOf(m), m, "");
     if (r.error) err = r.error; else added++;
   }
   revalidatePath("/content");
