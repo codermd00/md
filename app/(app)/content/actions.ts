@@ -86,6 +86,15 @@ export async function savePost(i: PostInput): Promise<{ ok: boolean; message: st
   return error ? { ok: false, message: error.message } : { ok: true, message: "Saved" };
 }
 
+/** Skip many Ready posts at once (only Ready ones are touched) */
+export async function skipPosts(ids: string[]): Promise<{ ok: boolean; message: string }> {
+  const sb = await requireUser();
+  if (!ids.length) return { ok: false, message: "Nothing selected" };
+  const { data, error } = await sb.from("posts").update({ status: "skip" }).in("id", ids.slice(0, 500)).eq("status", "ready").select("id");
+  revalidatePath("/content");
+  return error ? { ok: false, message: error.message } : { ok: true, message: `Skipped ${data?.length || 0}` };
+}
+
 /** حذف = إخفاء (لا يعود عند الجلب القادم) */
 export async function hidePost(id: string): Promise<{ ok: boolean }> {
   const sb = await requireUser();

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import WatchButton from "./WatchButton";
 import PostResults from "./PostResults";
-import { addFacebookPost, fetchFacebookPosts, duplicatePost, hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
+import { addFacebookPost, fetchFacebookPosts, skipPosts, duplicatePost, hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
 
 export type PostCard = {
   platform: "instagram" | "facebook"; id: string; clientId: string; clientName: string; igMediaId: string; shortcode: string; permalink: string; mediaType: string;
@@ -31,6 +31,7 @@ export default function ContentView({ clients, posts, initialClient = "" }: { in
   const [sel, setSel] = useState<PostCard | null>(null);
   const [msg, setMsg] = useState("");
   const [fb, setFb] = useState<string | null>(null);
+  const [pick, setPick] = useState<Set<string> | null>(null); // selection mode (Ready posts)
   const [pending, start] = useTransition();
 
   const base = useMemo(() => posts.filter((p) => (!client || p.clientId === client) && (!q || (p.shortcode + " " + p.caption + " " + p.clientName).toLowerCase().includes(q.toLowerCase()))), [posts, client, q]);
@@ -84,12 +85,26 @@ export default function ContentView({ clients, posts, initialClient = "" }: { in
         {TABS.map(([k, l]) => <span key={k} className={`btab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>{l} · {count(k)}</span>)}
       </div>
 
+      {tab === "ready" && shown.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+          {pick === null
+            ? <button className="btn" onClick={() => setPick(new Set())}>Select</button>
+            : (
+              <>
+                <button className="btn" onClick={() => setPick(pick.size === shown.length ? new Set() : new Set(shown.map((p) => p.id)))}>{pick.size === shown.length ? "Clear" : `Select all ${shown.length}`}</button>
+                <button className="btn pri" disabled={pending || pick.size === 0} onClick={() => start(async () => { const r = await skipPosts([...pick]); setMsg(r.message); setPick(null); router.refresh(); })}>Skip {pick.size || ""}</button>
+                <button className="btn" onClick={() => setPick(null)}>Cancel</button>
+              </>
+            )}
+        </div>
+      )}
+
       {shown.length === 0 ? (
         <div className="panel empty"><b>{posts.length === 0 ? "No posts yet" : "No posts"}</b></div>
       ) : (
         <div className="pgridc">
           {shown.map((p) => (
-            <div className="pcard" key={p.id} onClick={() => setSel(p)}>
+            <div className="pcard" key={p.id} style={pick?.has(p.id) ? { outline: "2px solid var(--blue2)" } : undefined} onClick={() => { if (pick && p.status === "ready") { const n = new Set(pick); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); setPick(n); } else if (!pick) setSel(p); }}>
               <div className="pimg">{p.thumb ? <img src={p.thumb} alt="" loading="lazy" /> : <span>—</span>}</div>
               <div className="pbody">
                 <div className="ptop"><b>{p.clientName}</b><span className={`chip sm ${ST[p.status].cls}`}>{ST[p.status].label}</span></div>
