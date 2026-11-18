@@ -86,7 +86,14 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
         <div className="cards">
           {list.map((c) => {
             const st = statusOf(c);
-            const pct = c.budget > 0 ? Math.min(100, (c.spend / c.budget) * 100) : 0;
+            // campaign progress = days elapsed of the client's period
+            const dayMs = 864e5;
+            const t0 = c.period_start ? Date.parse(c.period_start + "T00:00:00Z") : NaN;
+            const t1 = c.period_end ? Date.parse(c.period_end + "T00:00:00Z") : NaN;
+            const tn = Date.parse(new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Baghdad" }) + "T00:00:00Z");
+            const total = t1 >= t0 ? Math.round((t1 - t0) / dayMs) + 1 : 0;
+            const elapsed = total ? Math.min(total, Math.max(0, Math.round((tn - t0) / dayMs) + 1)) : 0;
+            const pct = total ? (elapsed / total) * 100 : 0;
             const over = c.budget > 0 && c.spend > c.budget;
             return (
               <div className="cc" key={c.id}>
@@ -112,8 +119,8 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
                   <div className="stat"><small>Camp. end</small><b>{c.daysLeft === null ? "—" : `${c.daysLeft}d`}</b></div>
                 </div>
                 <div>
-                  <div className="pl"><span>Spend progress</span><span>{c.budget > 0 ? `${Math.round((c.spend / c.budget) * 100)}%` : "—"}</span></div>
-                  <div className={`bar ${over ? "over" : ""}`}><i style={{ width: `${pct}%` }} /></div>
+                  <div className="pl"><span>End progress</span><span>{total ? `${elapsed}/${total}d · ${Math.round(pct)}%` : "—"}</span></div>
+                  <div className="bar"><i style={{ width: `${pct}%` }} /></div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span className={`chip ${st.cls}`}>{st.label}</span>
