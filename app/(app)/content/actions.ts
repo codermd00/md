@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabase, createAdminSupabase } from "@/lib/supabase/server";
 import { graph, graphAll, graphPost } from "@/lib/meta";
 import { notifyEnabled, sendTelegram } from "@/lib/telegram";
-import { syncPosts } from "@/lib/sync-posts";
+import { syncPosts, storeThumb, BASE_FIELDS } from "@/lib/sync-posts";
 
 async function requireUser() {
   const sb = createServerSupabase();
@@ -424,4 +424,58 @@ export async function fetchFacebookPosts(clientId: string, count: number): Promi
   }
   revalidatePath("/content");
   return err ? { ok: false, message: err } : { ok: true, message: added ? `Added ${added} Facebook post(s)` : "No new posts" };
+}
+
+
+/** Add ONE Instagram post by its link or shortcode (found by scanning the account's recent media). */
+async function addInstagramPost(clientId: string, input: string): Promise<{ ok: boolean; message: string }> {
+  const db = createAdminSupabase();
+  const { data: c } = await db.from("clients").select("id,ig_user_id").eq("id", clientId).maybeSingle();
+  if (!c) return { ok: false, message: "Client not found" };
+  if (!c.ig_user_id) return { ok: false, message: "Client has no Instagram ID (edit in Clients)" };
+  const code = input.match(/instagram\.com\/(?:[\w.]+\/)?(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/i)?.[1] || input.trim().match(/^[A-Za-z0-9_-]{6,15}$/)?.[0];
+  if (!code) return { ok: false, message: "Could not read a post code from this" };
+
+  let m: any = null;
+  let after: string | undefined;
+  let withBoost = true;
+  for (let page = 0; page < 10 && !m; page++) {
+    let r: any;
+    try { r = await graph(`${c.ig_user_id}/media`, { fields: BASE_FIELDS + (withBoost ? ",boost_eligibility_info" : ""), limit: 50, after }); }
+    catch (e: any) {
+      if (withBoost) { withBoost = false; page--; continue; }
+      return { ok: false, message: e?.message || "Meta request failed" };
+    }
+    m = (r.data || []).find((x: any) => x.shortcode === code) || null;
+    after = r.paging?.cursors?.after;
+    if (!r.paging?.next || !after) break;
+  }
+  if (!m) return { ok: false, message: `Post ${code} not found in the latest 500 posts of this account` };
+
+  const { data: ex } = await db.from("posts").select("id,status").eq("client_id", clientId).eq("ig_media_id", m.id).is("copy_of", null).limit(1);
+  if (ex?.length) return { ok: false, message: `Already added (${ex[0].status})` };
+
+  const src = m.media_type === "VIDEO" ? m.thumbnail_url : (m.media_url || m.children?.data?.[0]?.media_url || m.thumbnail_url);
+  const thumb = src ? await storeThumb(db as any, clientId, m.id, src) : null;
+  const el = m.boost_eligibility_info;
+  const eligible: boolean | null = el && typeof el.eligible_to_boost === "boolean" ? el.eligible_to_boost : null;
+  const { data: setRows } = await db.from("settings").select("key,value").in("key", ["default_budget", "default_days"]);
+  const def = (k: string, d: number) => Number((setRows || []).find((x: any) => x.key === k)?.value) || d;
+  const { error } = await db.from("posts").insert({
+    client_id: clientId, ig_media_id: m.id, shortcode: m.shortcode, permalink: m.permalink, media_type: m.media_type,
+    caption: m.caption || null, username: m.username, thumb_path: thumb, posted_at: m.timestamp || null, eligible,
+    ineligible_reason: el?.ineligible_reason || el?.ineligible_reasons?.[0] || null,
+    status: "ready", budget: def("default_budget", 200), days: def("default_days", 2),
+  });
+  revalidatePath("/content");
+  return error ? { ok: false, message: error.message } : { ok: true, message: "Added" };
+}
+
+/** One entry point: paste an Instagram or Facebook link / code / ID and only that post is fetched. */
+export async function addPost(clientId: string, input: string): Promise<{ ok: boolean; message: string }> {
+  await requireUser();
+  const t = input.trim();
+  if (!t) return { ok: false, message: "Enter a post link or code" };
+  const isFb = /facebook\.com|fb\.com|fb\.watch/i.test(t) || /^\d{8,}$/.test(t) || /^\d{5,}_\d{5,}$/.test(t);
+  return isFb ? addFacebookPost(clientId, t) : addInstagramPost(clientId, t);
 }

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import WatchButton from "./WatchButton";
 import PostResults from "./PostResults";
-import { addFacebookPost, fetchFacebookPosts, skipPosts, duplicatePost, hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
+import { addPost, skipPosts, duplicatePost, hidePost, listTargets, previewRun, refreshPosts, resetPost, runPost, savePost, type TargetCampaign } from "@/app/(app)/content/actions";
 
 export type PostCard = {
   platform: "instagram" | "facebook"; id: string; clientId: string; clientName: string; igMediaId: string; shortcode: string; permalink: string; mediaType: string;
@@ -27,7 +27,6 @@ export default function ContentView({ clients, posts, initialClient = "" }: { in
   const [tab, setTab] = useState<(typeof TABS)[number][0]>("ready");
   const [client, setClient] = useState(initialClient);
   const [q, setQ] = useState("");
-  const [n, setN] = useState("5");
   const [sel, setSel] = useState<PostCard | null>(null);
   const [msg, setMsg] = useState("");
   const [fb, setFb] = useState<string | null>(null);
@@ -54,18 +53,8 @@ export default function ContentView({ clients, posts, initialClient = "" }: { in
           {view === "posts" && <button className="btn" onClick={() => refresh()} disabled={pending}>{pending ? "..." : "Refresh"}</button>}
           {view === "posts" && client && (
             <>
-              <input type="number" min={1} max={50} value={n} onChange={(e) => setN(e.target.value)} style={{ width: 64, padding: "7px 10px", fontSize: 13 }} />
-              <button className="btn" onClick={() => refresh(Math.min(Math.max(parseInt(n) || 1, 1), 50))} disabled={pending}>Fetch last {parseInt(n) || 1}</button>
-              <button className="btn" disabled={pending} onClick={() => start(async () => { const r = await fetchFacebookPosts(client, parseInt(n) || 1); setMsg(r.message); router.refresh(); })}>Facebook last {parseInt(n) || 1}</button>
-              {fb === null
-                ? <button className="btn" onClick={() => setFb("")}>+ Facebook post</button>
-                : (
-                  <>
-                    <input autoFocus placeholder="Post ID or link" dir="ltr" value={fb} onChange={(e) => setFb(e.target.value)} style={{ width: 170, padding: "7px 10px", fontSize: 13 }} />
-                    <button className="btn pri" disabled={pending || !fb.trim()} onClick={() => start(async () => { const r = await addFacebookPost(client, fb); setMsg(r.ok ? "" : r.message); if (r.ok) { setFb(null); router.refresh(); } })}>Add</button>
-                    <button className="btn" onClick={() => setFb(null)}>×</button>
-                  </>
-                )}
+              <input placeholder="Post link or code" dir="ltr" value={fb ?? ""} onChange={(e) => setFb(e.target.value)} style={{ width: 190, padding: "7px 10px", fontSize: 13 }} />
+              <button className="btn pri" disabled={pending || !(fb || "").trim()} onClick={() => start(async () => { const r = await addPost(client, fb || ""); setMsg(r.ok ? "" : r.message); if (r.ok) { setFb(null); router.refresh(); } })}>Add post</button>
             </>
           )}
         </div>

@@ -2,10 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { graph } from "./meta";
 import { notifyEnabled, sendTelegram } from "./telegram";
 
-const BASE_FIELDS = "id,username,media_type,caption,shortcode,permalink,timestamp,media_url,thumbnail_url,children{media_url}";
+export const BASE_FIELDS = "id,username,media_type,caption,shortcode,permalink,timestamp,media_url,thumbnail_url,children{media_url}";
 const LAST_N = 1;
 
-async function storeThumb(db: SupabaseClient, clientId: string, mediaId: string, url: string): Promise<string | null> {
+export async function storeThumb(db: SupabaseClient, clientId: string, mediaId: string, url: string): Promise<string | null> {
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
