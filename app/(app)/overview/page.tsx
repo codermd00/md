@@ -1,11 +1,11 @@
-import type React from "react";
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { todayStr } from "@/lib/dates";
+import { addDays, todayStr } from "@/lib/dates";
 import { campaignStart, computeProgress, type Progress } from "@/lib/progress";
 import { fetchAll } from "@/lib/fetchall";
 import { TYPE_LABEL } from "@/lib/results";
 import DataHealth from "@/components/DataHealth";
+import OverviewGrid, { type OvCard } from "@/components/OverviewGrid";
 
 export const dynamic = "force-dynamic";
 
@@ -34,22 +34,42 @@ export default async function OverviewPage() {
   const today = todayStr();
   const dayAgo = new Date(Date.now() - 86400000).toISOString();
 
-  const [{ data: clients }, { data: setRows }, { data: camps }, { data: logs }] = await Promise.all([
+  const [{ data: clients }, { data: setRows }, { data: camps }, { data: logs }, { data: seenRows }] = await Promise.all([
     sb.from("clients").select("id,name,period_start,period_end,account_status,synced_at").order("name"),
     sb.from("settings").select("key,value").eq("key", "late_threshold"),
-    sb.from("campaigns").select("id,client_id,name,type,effective_status,start_time"),
+    sb.from("campaigns").select("id,client_id,name,type,effective_status,start_time,stop_time"),
     sb.from("sync_log").select("client_id,ok,detail,created_at").gte("created_at", dayAgo).order("created_at", { ascending: false }).limit(200),
+    sb.from("attention_seen").select("campaign_id,period_start,spend_at_seen"),
   ]);
   const threshold = Number((setRows || [])[0]?.value) || 95;
   const cl: any[] = clients || [];
   const cs: any[] = camps || [];
+  const seenMap = new Map<string, any>(((seenRows as any[]) || []).map((x) => [x.campaign_id, x]));
   const campIds = cs.map((k) => k.id);
-  const [ranges, goals] = campIds.length
+  const recentFrom = addDays(today, -2);
+  const [ranges, goals, adsets, recent] = campIds.length
     ? await Promise.all([
         fetchAll<any>((a, b) => sb.from("insights_range").select("entity_id,date_from,spend,results").eq("level", "campaign").in("entity_id", campIds).order("synced_at", { ascending: false }).order("id", { ascending: false }).range(a, b) as any),
         fetchAll<any>((a, b) => sb.from("campaign_goals").select("campaign_id,period_start,target,budget").in("campaign_id", campIds).range(a, b) as any),
+        fetchAll<any>((a, b) => sb.from("ad_sets").select("campaign_id,effective_status,end_time").in("campaign_id", campIds).range(a, b) as any),
+        fetchAll<any>((a, b) => sb.from("insights_daily").select("entity_id,spend").eq("level", "campaign").in("entity_id", campIds).gte("day", recentFrom).gt("spend", 0).range(a, b) as any),
       ])
-    : [[], []];
+    : [[], [], [], []];
+
+  // a campaign is running now only if: it is ON, not past its stop date, has a live ad set (ON and not past its end date),
+  // and it delivered in the last 3 days (or just started). Abandoned or finished campaigns are left out.
+  const nowMs = Date.now();
+  const adsetsOf = new Map<string, any[]>();
+  for (const a of adsets as any[]) { const l = adsetsOf.get(a.campaign_id) || []; l.push(a); adsetsOf.set(a.campaign_id, l); }
+  const delivered = new Set((recent as any[]).map((r) => r.entity_id));
+  const running = (k: any): boolean => {
+    if (String(k.effective_status || "") !== "ACTIVE") return false;
+    if (k.stop_time && new Date(k.stop_time).getTime() <= nowMs) return false;
+    const sets = adsetsOf.get(k.id) || [];
+    if (sets.length && !sets.some((a) => a.effective_status === "ACTIVE" && (!a.end_time || new Date(a.end_time).getTime() > nowMs))) return false;
+    const fresh = k.start_time && nowMs - new Date(k.start_time).getTime() < 3 * 864e5;
+    return delivered.has(k.id) || !!fresh;
+  };
 
   // sync health (popup) and failed syncs
   const failed = new Map<string, string>();
@@ -76,12 +96,12 @@ export default async function OverviewPage() {
         const spend = r ? Number(r.spend) : 0;
         const goal = goals.find((x: any) => x.campaign_id === k.id && x.period_start === c.period_start);
         const hasGoal = !!goal && (goal.target != null || goal.budget != null);
-        const isActive = String(k.effective_status || "") === "ACTIVE";
-        // same rule as Performance: it spent this period, or it is active with a goal (waiting for its first spend)
-        if (!(spend > 0 || (hasGoal && isActive))) continue;
+        const isActive = running(k);
+        // only campaigns that are running now: stopped ones are not tracked here
+        if (!isActive || !(spend > 0 || hasGoal)) continue;
 
         if (!goal || goal.target == null || Number(goal.target) <= 0) {
-          if (isActive && spend > RUNNING_SPEND) { g.noTarget.push(k); noTargetCount++; }
+          if (spend > RUNNING_SPEND) { g.noTarget.push(k); noTargetCount++; }
           continue;
         }
         const p = computeProgress({
@@ -91,7 +111,9 @@ export default async function OverviewPage() {
         });
         tracked++;
         const late = p.status === "late" || p.status === "missed";
-        const seen = false;
+        // marked as seen: counts as handled until the campaign's spend changes (or the period changes)
+        const sn = seenMap.get(k.id);
+        const seen = late && !!sn && sn.period_start === c.period_start && spend <= Number(sn.spend_at_seen) + 0.005;
         if (late) lateCount++; else onTrack++;
         const res = r ? Number(r.results) : 0;
         g.rows.push({ camp: k, p, spend, late, seen, ratio: p.expected && p.expected > 0 ? res / p.expected : 1 });
@@ -103,9 +125,36 @@ export default async function OverviewPage() {
     if (g.notes.length || g.rows.length || g.noTarget.length) groups.push(g);
   }
   // clients with the most serious problems first
-  const badRows = (g: Group) => g.rows.filter((x) => x.late && !x.seen).length;
-  const score = (g: Group) => (g.notes.some((n) => n.level === "bad") ? 0 : badRows(g) ? 1 : g.notes.length || g.noTarget.length ? 2 : 3);
-  groups.sort((a, b) => score(a) - score(b) || badRows(b) - badRows(a));
+  // account problems first, then by how far behind the worst campaign is
+  const worst = (g: Group) => Math.min(2, ...g.rows.filter((x) => x.late && !x.seen).map((x) => (x.p.status === "missed" ? -1 : x.ratio)));
+  const acct = (g: Group) => (g.notes.some((n) => n.level === "bad") ? 0 : 1);
+  groups.sort((a, b) => acct(a) - acct(b) || worst(a) - worst(b) || a.client.name.localeCompare(b.client.name));
+
+  const cards: OvCard[] = groups.map((g) => {
+    const c = g.client;
+    const left = c.period_end ? Math.max(0, Math.round((Date.parse(c.period_end) - Date.parse(today)) / 864e5)) : null;
+    const late = g.rows.filter((x) => x.late && !x.seen);
+    const ok = g.rows.length - late.length;
+    const bad = g.notes.some((n) => n.level === "bad");
+    const color = bad || late.some((x) => x.p.status === "missed" || x.ratio < 0.6) ? "var(--red)"
+      : late.length || g.notes.length || g.noTarget.length ? "var(--orange)" : "var(--green)";
+    const chips: OvCard["chips"] = [
+      ...g.notes.map((n) => ({ text: n.text, tone: (n.level === "bad" ? "bad" : "warn") as "bad" | "warn" })),
+      ...late.map((x) => {
+        const seen = { campaignId: x.camp.id, periodStart: c.period_start as string, spend: x.spend };
+        return x.p.status === "missed"
+          ? { text: `${x.camp.name} · missed ${Math.round(x.p.pct || 0)}%`, tone: "bad" as const, seen }
+          : { text: `${x.camp.name} · ${Math.round(x.ratio * 100)}%`, tone: (x.ratio < 0.6 ? "bad" : "warn") as "bad" | "warn", seen };
+      }),
+      ...(g.noTarget.length ? [{ text: `${g.noTarget.length} no target`, tone: "mute" as const }] : []),
+    ];
+    return {
+      id: c.id, name: c.name, left: left === null ? "No period" : left === 0 ? "Ends today" : `${left} days left`,
+      ring: g.rows.length ? Math.round((ok / g.rows.length) * 100) : 0, ringText: g.rows.length ? `${ok}/${g.rows.length}` : "—",
+      color, count: g.rows.length + g.noTarget.length, chips,
+      late: late.length > 0, account: g.notes.some((n) => n.level === "bad"), noTarget: g.noTarget.length > 0,
+    };
+  });
 
   return (
     <>
@@ -118,36 +167,7 @@ export default async function OverviewPage() {
         <div className="panel empty"><b>No clients yet</b><Link href="/clients" style={{ color: "var(--blue2)" }}>Add your first client</Link></div>
       ) : (
         <>
-          <div className="ovgrid">
-            {groups.map((g) => {
-              const c = g.client;
-              const total = c.period_start && c.period_end ? Math.max(1, Math.round((Date.parse(c.period_end) - Date.parse(c.period_start)) / 864e5) + 1) : 0;
-              const elapsed = total ? Math.min(total, Math.max(0, Math.round((Date.parse(today) - Date.parse(c.period_start)) / 864e5) + 1)) : 0;
-              const left = c.period_end ? Math.max(0, Math.round((Date.parse(c.period_end) - Date.parse(today)) / 864e5)) : null;
-              const late = g.rows.filter((x) => x.late);
-              const tone = g.notes.some((n) => n.level === "bad") || late.length ? "var(--red)" : g.notes.length || g.noTarget.length ? "var(--orange)" : "var(--green)";
-              const pct = total ? Math.round((elapsed / total) * 100) : 0;
-              return (
-                <Link href={`/performance?client=${c.id}`} className="ovc" key={c.id}>
-                  <div className="hd">
-                    <span className="who">
-                      <span className="ring" style={{ "--p": pct, "--c": tone } as React.CSSProperties}><i>{total ? `${pct}%` : "—"}</i></span>
-                      <span style={{ minWidth: 0 }}><b>{c.name}</b><small>{left === null ? "No period" : left === 0 ? "Ends today" : `${left} days left`}</small></span>
-                    </span>
-                    <span className="cnt">{g.rows.length + g.noTarget.length} campaign{g.rows.length + g.noTarget.length === 1 ? "" : "s"}</span>
-                  </div>
-                  {(g.notes.length > 0 || late.length > 0 || g.noTarget.length > 0) && (
-                    <div className="chips">
-                      {g.notes.map((n, i) => <span key={"n" + i} className={`chip sm ${n.level === "bad" ? "bad" : "warn"}`}>{n.text}</span>)}
-                      {late.map((x) => <span key={x.camp.id} className="chip sm bad" title={x.camp.name}>{x.camp.name} · {x.p.status === "missed" ? "missed" : "late"}</span>)}
-                      {g.noTarget.length > 0 && <span className="chip sm mute">{g.noTarget.length} no target</span>}
-                    </div>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-          {groups.length === 0 && <div className="panel"><div className="fnd ok"><b>No campaigns to show</b></div></div>}
+          <OverviewGrid cards={cards} />
         </>
       )}
     </>
