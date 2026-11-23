@@ -6,7 +6,6 @@ import { campaignStart, computeProgress, type Progress } from "@/lib/progress";
 import { fetchAll } from "@/lib/fetchall";
 import { TYPE_LABEL } from "@/lib/results";
 import DataHealth from "@/components/DataHealth";
-import SeenButton from "@/components/SeenButton";
 
 export const dynamic = "force-dynamic";
 
@@ -35,17 +34,15 @@ export default async function OverviewPage() {
   const today = todayStr();
   const dayAgo = new Date(Date.now() - 86400000).toISOString();
 
-  const [{ data: clients }, { data: setRows }, { data: camps }, { data: logs }, { data: seenRows }] = await Promise.all([
+  const [{ data: clients }, { data: setRows }, { data: camps }, { data: logs }] = await Promise.all([
     sb.from("clients").select("id,name,period_start,period_end,account_status,synced_at").order("name"),
     sb.from("settings").select("key,value").eq("key", "late_threshold"),
     sb.from("campaigns").select("id,client_id,name,type,effective_status,start_time"),
     sb.from("sync_log").select("client_id,ok,detail,created_at").gte("created_at", dayAgo).order("created_at", { ascending: false }).limit(200),
-    sb.from("attention_seen").select("campaign_id,period_start,spend_at_seen"),
   ]);
   const threshold = Number((setRows || [])[0]?.value) || 95;
   const cl: any[] = clients || [];
   const cs: any[] = camps || [];
-  const seenMap = new Map<string, any>(((seenRows as any[]) || []).map((x) => [x.campaign_id, x]));
   const campIds = cs.map((k) => k.id);
   const [ranges, goals] = campIds.length
     ? await Promise.all([
@@ -94,9 +91,7 @@ export default async function OverviewPage() {
         });
         tracked++;
         const late = p.status === "late" || p.status === "missed";
-        // marked as seen: no longer counts as a problem until the campaign's spend changes (or the period changes)
-        const sn = seenMap.get(k.id);
-        const seen = late && !!sn && sn.period_start === c.period_start && spend <= Number(sn.spend_at_seen) + 0.005;
+        const seen = false;
         if (late) lateCount++; else onTrack++;
         const res = r ? Number(r.results) : 0;
         g.rows.push({ camp: k, p, spend, late, seen, ratio: p.expected && p.expected > 0 ? res / p.expected : 1 });
@@ -123,55 +118,35 @@ export default async function OverviewPage() {
         <div className="panel empty"><b>No clients yet</b><Link href="/clients" style={{ color: "var(--blue2)" }}>Add your first client</Link></div>
       ) : (
         <>
-          {groups.map((g) => {
-            const c = g.client;
-            const total = c.period_start && c.period_end ? Math.max(1, Math.round((Date.parse(c.period_end) - Date.parse(c.period_start)) / 864e5) + 1) : 0;
-            const elapsed = total ? Math.min(total, Math.max(0, Math.round((Date.parse(today) - Date.parse(c.period_start)) / 864e5) + 1)) : 0;
-            const left = c.period_end ? Math.max(0, Math.round((Date.parse(c.period_end) - Date.parse(today)) / 864e5)) : null;
-            const nBad = badRows(g);
-            const tone = g.notes.some((n) => n.level === "bad") || nBad ? "var(--red)" : g.notes.length || g.noTarget.length ? "var(--orange)" : "var(--green)";
-            const pct = total ? Math.round((elapsed / total) * 100) : 0;
-            return (
-              <div className="ovc" key={c.id}>
-                <Link href={`/performance?client=${c.id}`} className="hd">
-                  <span className="who">
-                    <span className="ring" style={{ "--p": pct, "--c": tone } as React.CSSProperties}><i>{total ? `${pct}%` : "—"}</i></span>
-                    <span style={{ minWidth: 0 }}><b>{c.name}</b><small>{left === null ? "No period" : left === 0 ? "Ends today" : `${left} days left`}</small></span>
-                  </span>
-                  <span className="cnt">{g.rows.length} campaign{g.rows.length === 1 ? "" : "s"}</span>
-                </Link>
-
-                {(g.notes.length > 0 || g.noTarget.length > 0) && (
-                  <div className="chips">
-                    {g.notes.map((n, i) => <span key={i} className={`chip sm ${n.level === "bad" ? "bad" : "warn"}`}>{n.text}</span>)}
-                    {g.noTarget.length > 0 && <span className="chip sm mute">{g.noTarget.length} no target</span>}
+          <div className="ovgrid">
+            {groups.map((g) => {
+              const c = g.client;
+              const total = c.period_start && c.period_end ? Math.max(1, Math.round((Date.parse(c.period_end) - Date.parse(c.period_start)) / 864e5) + 1) : 0;
+              const elapsed = total ? Math.min(total, Math.max(0, Math.round((Date.parse(today) - Date.parse(c.period_start)) / 864e5) + 1)) : 0;
+              const left = c.period_end ? Math.max(0, Math.round((Date.parse(c.period_end) - Date.parse(today)) / 864e5)) : null;
+              const late = g.rows.filter((x) => x.late);
+              const tone = g.notes.some((n) => n.level === "bad") || late.length ? "var(--red)" : g.notes.length || g.noTarget.length ? "var(--orange)" : "var(--green)";
+              const pct = total ? Math.round((elapsed / total) * 100) : 0;
+              return (
+                <Link href={`/performance?client=${c.id}`} className="ovc" key={c.id}>
+                  <div className="hd">
+                    <span className="who">
+                      <span className="ring" style={{ "--p": pct, "--c": tone } as React.CSSProperties}><i>{total ? `${pct}%` : "—"}</i></span>
+                      <span style={{ minWidth: 0 }}><b>{c.name}</b><small>{left === null ? "No period" : left === 0 ? "Ends today" : `${left} days left`}</small></span>
+                    </span>
+                    <span className="cnt">{g.rows.length + g.noTarget.length} campaign{g.rows.length + g.noTarget.length === 1 ? "" : "s"}</span>
                   </div>
-                )}
-
-                {g.rows.map((x) => {
-                  const got = Math.min(100, x.p.pct || 0);
-                  const should = x.p.expected && x.p.target ? Math.min(100, (x.p.expected / x.p.target) * 100) : null;
-                  const bad = x.late && !x.seen;
-                  return (
-                    <div className="camp" key={x.camp.id}>
-                      <div className="l1">
-                        <span className="nm" title={x.camp.name}>{x.camp.name}<em>{TYPE_LABEL[x.camp.type as keyof typeof TYPE_LABEL]}</em></span>
-                        <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                          <span className="st" style={{ color: bad ? "var(--red)" : x.late ? "var(--t3)" : "var(--green)" }}>{x.p.status === "missed" ? "missed" : x.late ? (x.seen ? "seen" : "late") : x.p.status === "achieved" ? "achieved" : "on track"}</span>
-                          {bad && <SeenButton campaignId={x.camp.id} periodStart={c.period_start} spend={x.spend} />}
-                        </span>
-                      </div>
-                      <div className={`pace ${bad ? "bad" : x.late ? "mute" : ""}`}>
-                        <b style={{ width: `${got}%` }} />
-                        {should !== null && <u style={{ left: `calc(${should}% - 1px)` }} />}
-                      </div>
-                      <div className="l2"><span>{Math.round(x.p.pct || 0)}% of target</span>{should !== null && <span>should be {Math.round(should)}%</span>}</div>
+                  {(g.notes.length > 0 || late.length > 0 || g.noTarget.length > 0) && (
+                    <div className="chips">
+                      {g.notes.map((n, i) => <span key={"n" + i} className={`chip sm ${n.level === "bad" ? "bad" : "warn"}`}>{n.text}</span>)}
+                      {late.map((x) => <span key={x.camp.id} className="chip sm bad" title={x.camp.name}>{x.camp.name} · {x.p.status === "missed" ? "missed" : "late"}</span>)}
+                      {g.noTarget.length > 0 && <span className="chip sm mute">{g.noTarget.length} no target</span>}
                     </div>
-                  );
-                })}
-              </div>
-            );
-          })}
+                  )}
+                </Link>
+              );
+            })}
+          </div>
           {groups.length === 0 && <div className="panel"><div className="fnd ok"><b>No campaigns to show</b></div></div>}
         </>
       )}
