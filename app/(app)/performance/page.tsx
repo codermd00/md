@@ -31,8 +31,12 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
 
   if (!client) return <PerformanceView clients={[]} client={null} campaigns={[]} adsets={[]} breakdown={[]} daily={[]} today={today} threshold={threshold} />;
 
-  // Archive: periods that were current before; ?period=<date_from> shows one of them
-  const { data: periodRows } = await sb.from("insights_range").select("date_from,date_to").eq("level", "account").eq("entity_id", client.id).order("date_from", { ascending: false });
+  // independent queries run together (one round trip instead of three)
+  const [{ data: periodRows }, { data: camps }, { data: adsetRows }] = await Promise.all([
+    sb.from("insights_range").select("date_from,date_to").eq("level", "account").eq("entity_id", client.id).order("date_from", { ascending: false }),
+    sb.from("campaigns").select("*").eq("client_id", client.id),
+    sb.from("ad_sets").select("id,campaign_id,name,effective_status").eq("client_id", client.id),
+  ]);
   const archive: { from: string; to: string }[] = [];
   for (const r of (periodRows || []) as any[]) {
     if (r.date_from === client.period_start || archive.some((a) => a.from === r.date_from)) continue;
@@ -44,10 +48,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
   const vToday = arch && arch.to < today ? arch.to : today;
 
   const prev = vStart && vEnd ? previousPeriod(vStart, vEnd) : null;
-  const { data: camps } = await sb.from("campaigns").select("*").eq("client_id", client.id);
   const ids = (camps || []).map((k: any) => k.id);
-
-  const { data: adsetRows } = await sb.from("ad_sets").select("id,campaign_id,name,effective_status").eq("client_id", client.id);
   const adsetIds = (adsetRows || []).map((a: any) => a.id);
 
   const [ranges, adsetRanges, breakdown, goals, daily] = await Promise.all([

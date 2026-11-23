@@ -34,6 +34,18 @@ export default async function OverviewPage() {
   const today = todayStr();
   const dayAgo = new Date(Date.now() - 86400000).toISOString();
 
+  const recentFrom = addDays(today, -2);
+  const periodsFrom = addDays(today, -70); // client periods are monthly: older data is not needed here
+  const nowIso = new Date().toISOString();
+  // started together with the first batch: the whole page costs one round trip
+  const secondP = Promise.all([
+    fetchAll<any>((a, b) => sb.from("insights_range").select("entity_id,date_from,spend,results").eq("level", "campaign").gte("date_from", periodsFrom).order("synced_at", { ascending: false }).order("id", { ascending: false }).range(a, b) as any),
+    fetchAll<any>((a, b) => sb.from("campaign_goals").select("campaign_id,period_start,target,budget").gte("period_start", periodsFrom).range(a, b) as any),
+    // only live ad sets matter: ON and not past their end date
+    fetchAll<any>((a, b) => sb.from("ad_sets").select("campaign_id,effective_status,end_time").eq("effective_status", "ACTIVE").or(`end_time.is.null,end_time.gt.${nowIso}`).range(a, b) as any),
+    fetchAll<any>((a, b) => sb.from("insights_daily").select("entity_id,spend").eq("level", "campaign").gte("day", recentFrom).gt("spend", 0).range(a, b) as any),
+  ]);
+
   const [{ data: clients }, { data: setRows }, { data: camps }, { data: logs }, { data: seenRows }] = await Promise.all([
     sb.from("clients").select("id,name,period_start,period_end,account_status,synced_at").order("name"),
     sb.from("settings").select("key,value").eq("key", "late_threshold"),
@@ -45,28 +57,17 @@ export default async function OverviewPage() {
   const cl: any[] = clients || [];
   const cs: any[] = camps || [];
   const seenMap = new Map<string, any>(((seenRows as any[]) || []).map((x) => [x.campaign_id, x]));
-  const campIds = cs.map((k) => k.id);
-  const recentFrom = addDays(today, -2);
-  const [ranges, goals, adsets, recent] = campIds.length
-    ? await Promise.all([
-        fetchAll<any>((a, b) => sb.from("insights_range").select("entity_id,date_from,spend,results").eq("level", "campaign").in("entity_id", campIds).order("synced_at", { ascending: false }).order("id", { ascending: false }).range(a, b) as any),
-        fetchAll<any>((a, b) => sb.from("campaign_goals").select("campaign_id,period_start,target,budget").in("campaign_id", campIds).range(a, b) as any),
-        fetchAll<any>((a, b) => sb.from("ad_sets").select("campaign_id,effective_status,end_time").in("campaign_id", campIds).range(a, b) as any),
-        fetchAll<any>((a, b) => sb.from("insights_daily").select("entity_id,spend").eq("level", "campaign").in("entity_id", campIds).gte("day", recentFrom).gt("spend", 0).range(a, b) as any),
-      ])
-    : [[], [], [], []];
+  const [ranges, goals, adsets, recent] = await secondP;
 
-  // a campaign is running now only if: it is ON, not past its stop date, has a live ad set (ON and not past its end date),
+  // a campaign is running now only if: it is ON, not past its stop date, has a live ad set,
   // and it delivered in the last 3 days (or just started). Abandoned or finished campaigns are left out.
   const nowMs = Date.now();
-  const adsetsOf = new Map<string, any[]>();
-  for (const a of adsets as any[]) { const l = adsetsOf.get(a.campaign_id) || []; l.push(a); adsetsOf.set(a.campaign_id, l); }
+  const liveSets = new Set((adsets as any[]).map((a) => a.campaign_id));
   const delivered = new Set((recent as any[]).map((r) => r.entity_id));
   const running = (k: any): boolean => {
     if (String(k.effective_status || "") !== "ACTIVE") return false;
     if (k.stop_time && new Date(k.stop_time).getTime() <= nowMs) return false;
-    const sets = adsetsOf.get(k.id) || [];
-    if (sets.length && !sets.some((a) => a.effective_status === "ACTIVE" && (!a.end_time || new Date(a.end_time).getTime() > nowMs))) return false;
+    if (!liveSets.has(k.id)) return false;
     const fresh = k.start_time && nowMs - new Date(k.start_time).getTime() < 3 * 864e5;
     return delivered.has(k.id) || !!fresh;
   };
