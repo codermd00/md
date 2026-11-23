@@ -305,3 +305,25 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 .wdotl{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle;flex:none}
 .wdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-left:6px}
 @media(max-width:900px){.bnav a{position:relative}.bnav .wdot{position:absolute;top:4px;left:calc(50% + 9px);margin:0}}
+
+/* ---- Overview: client cards with per-campaign pace bars ---- */
+.ovc{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:14px 16px;margin-bottom:12px;display:block}
+.ovc .hd{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ovc .who{display:flex;align-items:center;gap:12px;min-width:0}
+.ovc .who b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ovc .who small{color:var(--t3);font-size:12px}
+.ring{--p:0;--c:var(--green);width:54px;height:54px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:conic-gradient(var(--c) calc(var(--p)*1%),var(--surface2) 0)}
+.ring i{width:42px;height:42px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font:600 12px 'Inter',system-ui,sans-serif;font-style:normal}
+.ovc .cnt{color:var(--t3);font-size:12px;white-space:nowrap}
+.ovc .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.ovc .camp{margin-top:14px}
+.ovc .camp .l1{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ovc .camp .nm{font-weight:600;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ovc .camp .nm em{font-style:normal;color:var(--t3);font-weight:500;margin-left:6px;font-size:11px}
+.ovc .camp .st{font-size:12px;font-weight:600;white-space:nowrap}
+.pace{position:relative;height:10px;border-radius:99px;background:var(--surface2);margin:8px 0 4px}
+.pace b{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--green)}
+.pace.bad b{background:var(--red)}.pace.mute b{background:var(--t3)}
+.pace u{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--text);opacity:.8}
+.ovc .camp .l2{display:flex;justify-content:space-between;font-size:12px;color:var(--t3)}

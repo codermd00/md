@@ -1,3 +1,4 @@
+import type React from "react";
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { todayStr } from "@/lib/dates";
@@ -26,8 +27,8 @@ const ago = (iso: string | null) => {
 };
 const RUNNING_SPEND = 0.5; // running campaign = ACTIVE and spend above this
 
-type Row = { camp: any; p: Progress; spend: number; ratio: number };
-type Group = { client: any; notes: { text: string; level: "bad" | "warn" }[]; late: Row[]; noTarget: any[] };
+type Row = { camp: any; p: Progress; spend: number; ratio: number; late: boolean; seen: boolean };
+type Group = { client: any; notes: { text: string; level: "bad" | "warn" }[]; rows: Row[]; noTarget: any[] };
 
 export default async function OverviewPage() {
   const sb = createServerSupabase();
@@ -64,10 +65,10 @@ export default async function OverviewPage() {
   const healthStatus: "ok" | "warn" | "bad" = healthRows.some((r) => r.error) ? "bad" : healthRows.some((r) => r.stale) ? "warn" : "ok";
 
   // ---- every campaign of this month, per client ----
-  let tracked = 0, onTrack = 0, lateCount = 0, noTargetCount = 0;
+  let tracked = 0, onTrack = 0, lateCount = 0, noTargetCount = 0; // counts kept for later use
   const groups: Group[] = [];
   for (const c of cl) {
-    const g: Group = { client: c, notes: [], late: [], noTarget: [] };
+    const g: Group = { client: c, notes: [], rows: [], noTarget: [] };
     if (c.account_status && c.account_status !== "active") g.notes.push({ level: "bad", text: ACCOUNT_HINT[String(c.account_status)] || `Account status: ${c.account_status}` });
     if (failed.has(c.id) && !okRecent.has(c.id)) g.notes.push({ level: "warn", text: `Sync failed: ${(failed.get(c.id) || "").slice(0, 90)}` });
     if (!c.period_start || !c.period_end) g.notes.push({ level: "warn", text: "No period set" });
@@ -92,24 +93,24 @@ export default async function OverviewPage() {
           goalTarget: Number(goal.target), goalBudget: goal.budget != null ? Number(goal.budget) : null, threshold,
         });
         tracked++;
-        if (p.status === "late" || p.status === "missed") {
-          lateCount++;
-          // marked as seen: hidden until the campaign's spend changes (or the period changes)
-          const sn = seenMap.get(k.id);
-          if (sn && sn.period_start === c.period_start && spend <= Number(sn.spend_at_seen) + 0.005) continue;
-          const ratio = p.expected && p.expected > 0 ? (r ? Number(r.results) : 0) / p.expected : 0;
-          g.late.push({ camp: k, p, spend, ratio });
-        } else onTrack++;
+        const late = p.status === "late" || p.status === "missed";
+        // marked as seen: no longer counts as a problem until the campaign's spend changes (or the period changes)
+        const sn = seenMap.get(k.id);
+        const seen = late && !!sn && sn.period_start === c.period_start && spend <= Number(sn.spend_at_seen) + 0.005;
+        if (late) lateCount++; else onTrack++;
+        const res = r ? Number(r.results) : 0;
+        g.rows.push({ camp: k, p, spend, late, seen, ratio: p.expected && p.expected > 0 ? res / p.expected : 1 });
       }
     }
-    g.late.sort((a, b) => (a.p.status === b.p.status ? a.ratio - b.ratio : a.p.status === "missed" ? -1 : 1));
-    if (g.notes.length || g.late.length || g.noTarget.length) groups.push(g);
+    // problems first, the worst on top
+    const sev = (x: Row) => (x.late && !x.seen ? (x.p.status === "missed" ? 0 : 1) : 2);
+    g.rows.sort((a, b) => sev(a) - sev(b) || a.ratio - b.ratio);
+    if (g.notes.length || g.rows.length || g.noTarget.length) groups.push(g);
   }
   // clients with the most serious problems first
-  const score = (g: Group) => (g.notes.some((n) => n.level === "bad") ? 0 : g.late.length ? 1 : 2);
-  groups.sort((a, b) => score(a) - score(b) || b.late.length - a.late.length);
-
-  const fine = groups.length === 0;
+  const badRows = (g: Group) => g.rows.filter((x) => x.late && !x.seen).length;
+  const score = (g: Group) => (g.notes.some((n) => n.level === "bad") ? 0 : badRows(g) ? 1 : g.notes.length || g.noTarget.length ? 2 : 3);
+  groups.sort((a, b) => score(a) - score(b) || badRows(b) - badRows(a));
 
   return (
     <>
@@ -122,63 +123,56 @@ export default async function OverviewPage() {
         <div className="panel empty"><b>No clients yet</b><Link href="/clients" style={{ color: "var(--blue2)" }}>Add your first client</Link></div>
       ) : (
         <>
-          <div className="panel" style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "baseline" }}>
-              <span><b style={{ fontSize: 22 }}>{tracked}</b> <span className="sub" style={{ margin: 0 }}>tracked</span></span>
-              <span><b style={{ fontSize: 22, color: "var(--green)" }}>{onTrack}</b> <span className="sub" style={{ margin: 0 }}>on track</span></span>
-              <span><b style={{ fontSize: 22, color: lateCount ? "var(--red)" : undefined }}>{lateCount}</b> <span className="sub" style={{ margin: 0 }}>late</span></span>
-              <span><b style={{ fontSize: 22 }}>{noTargetCount}</b> <span className="sub" style={{ margin: 0 }}>no target</span></span>
-            </div>
-          </div>
+          {groups.map((g) => {
+            const c = g.client;
+            const total = c.period_start && c.period_end ? Math.max(1, Math.round((Date.parse(c.period_end) - Date.parse(c.period_start)) / 864e5) + 1) : 0;
+            const elapsed = total ? Math.min(total, Math.max(0, Math.round((Date.parse(today) - Date.parse(c.period_start)) / 864e5) + 1)) : 0;
+            const left = c.period_end ? Math.max(0, Math.round((Date.parse(c.period_end) - Date.parse(today)) / 864e5)) : null;
+            const nBad = badRows(g);
+            const tone = g.notes.some((n) => n.level === "bad") || nBad ? "var(--red)" : g.notes.length || g.noTarget.length ? "var(--orange)" : "var(--green)";
+            const pct = total ? Math.round((elapsed / total) * 100) : 0;
+            return (
+              <div className="ovc" key={c.id}>
+                <Link href={`/performance?client=${c.id}`} className="hd">
+                  <span className="who">
+                    <span className="ring" style={{ "--p": pct, "--c": tone } as React.CSSProperties}><i>{total ? `${pct}%` : "—"}</i></span>
+                    <span style={{ minWidth: 0 }}><b>{c.name}</b><small>{left === null ? "No period" : left === 0 ? "Ends today" : `${left} days left`}</small></span>
+                  </span>
+                  <span className="cnt">{g.rows.length} campaign{g.rows.length === 1 ? "" : "s"}</span>
+                </Link>
 
-          {fine ? (
-            <div className="panel"><div className="fnd ok"><b>{lateCount ? "Nothing new needs attention" : "All campaigns are on track"}</b></div></div>
-          ) : groups.map((g) => (
-            <div className="panel" key={g.client.id} style={{ marginBottom: 14 }}>
-              <h3 style={{ display: "flex", justifyContent: "space-between" }}>
-                <Link href={`/performance?client=${g.client.id}`}>{g.client.name}</Link>
-                <span className="sub" style={{ margin: 0 }}>{g.client.period_end && g.client.period_end >= today ? `${Math.max(0, Math.round((Date.parse(g.client.period_end) - Date.parse(today)) / 864e5))}d left` : ""}</span>
-              </h3>
+                {(g.notes.length > 0 || g.noTarget.length > 0) && (
+                  <div className="chips">
+                    {g.notes.map((n, i) => <span key={i} className={`chip sm ${n.level === "bad" ? "bad" : "warn"}`}>{n.text}</span>)}
+                    {g.noTarget.length > 0 && <span className="chip sm mute">{g.noTarget.length} no target</span>}
+                  </div>
+                )}
 
-              {g.notes.map((n, i) => (
-                <div className={`fnd ${n.level}`} key={i} style={{ marginBottom: 8 }}><div className="c" dir="auto">{n.text}</div></div>
-              ))}
-
-              <div className="plist">
-                {g.late.map((x) => {
-                  const days = x.p.total ? Math.min(100, (x.p.elapsed / x.p.total) * 100) : 0;
+                {g.rows.map((x) => {
                   const got = Math.min(100, x.p.pct || 0);
+                  const should = x.p.expected && x.p.target ? Math.min(100, (x.p.expected / x.p.target) * 100) : null;
+                  const bad = x.late && !x.seen;
                   return (
-                    <div className="prow" key={x.camp.id}>
-                      <div className="top">
-                        <div className="nm" title={x.camp.name}>{x.camp.name}<span className="tp">{TYPE_LABEL[x.camp.type as keyof typeof TYPE_LABEL]}</span></div>
+                    <div className="camp" key={x.camp.id}>
+                      <div className="l1">
+                        <span className="nm" title={x.camp.name}>{x.camp.name}<em>{TYPE_LABEL[x.camp.type as keyof typeof TYPE_LABEL]}</em></span>
                         <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                          <span className="chip sm bad">{x.p.status === "missed" ? "missed" : "late"}</span>
-                          <SeenButton campaignId={x.camp.id} periodStart={g.client.period_start} spend={x.spend} />
+                          <span className="st" style={{ color: bad ? "var(--red)" : x.late ? "var(--t3)" : "var(--green)" }}>{x.p.status === "missed" ? "missed" : x.late ? (x.seen ? "seen" : "late") : x.p.status === "achieved" ? "achieved" : "on track"}</span>
+                          {bad && <SeenButton campaignId={x.camp.id} periodStart={c.period_start} spend={x.spend} />}
                         </span>
                       </div>
-                      <div className="meta"><span>Days <b>{Math.round(days)}%</b></span></div>
-                      <div className="bar"><i style={{ width: `${days}%`, opacity: 0.45 }} /></div>
-                      <div className="meta"><span>Target <b>{Math.round(x.p.pct || 0)}%</b>{x.p.expected && x.p.target ? ` · expected ${Math.round((x.p.expected / x.p.target) * 100)}%` : ""}</span></div>
-                      <div className="bar"><i style={{ width: `${got}%`, background: "var(--red)" }} /></div>
+                      <div className={`pace ${bad ? "bad" : x.late ? "mute" : ""}`}>
+                        <b style={{ width: `${got}%` }} />
+                        {should !== null && <u style={{ left: `calc(${should}% - 1px)` }} />}
+                      </div>
+                      <div className="l2"><span>{Math.round(x.p.pct || 0)}% of target</span>{should !== null && <span>should be {Math.round(should)}%</span>}</div>
                     </div>
                   );
                 })}
               </div>
-
-              {g.noTarget.length > 0 && (
-                <div style={{ marginTop: 10 }}>
-                  <div className="sub" style={{ marginBottom: 4 }}>No target set</div>
-                  {g.noTarget.map((k) => (
-                    <div className="dsum" key={k.id} style={{ cursor: "default" }}>
-                      <span>{k.name}</span><span className="chip sm mute">{TYPE_LABEL[k.type as keyof typeof TYPE_LABEL]}</span>
-                    </div>
-                  ))}
-                  <Link href={`/performance?client=${g.client.id}`} style={{ color: "var(--blue2)", fontSize: 12, fontWeight: 600 }}>Set targets</Link>
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
+          {groups.length === 0 && <div className="panel"><div className="fnd ok"><b>No campaigns to show</b></div></div>}
         </>
       )}
     </>
