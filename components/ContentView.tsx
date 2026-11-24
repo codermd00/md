@@ -197,8 +197,8 @@ function PostModal({ post, onClose, onDone }: { post: PostCard; onClose: () => v
           <label className="f">Method
             <select value={f.mode} disabled={locked} onChange={(e) => setF({ ...f, mode: e.target.value as any })}>
               <option value="">— Select —</option>
-              <option value="direct">Add to ad set</option>
-              <option value="copy">Copy ad set for N days</option>
+              <option value="direct">Using adset</option>
+              <option value="copy">New adset</option>
             </select>
           </label>
         </div>
