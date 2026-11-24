@@ -50,6 +50,12 @@ export async function buildContext(sb: SupabaseClient, clientId: string, periodS
       goalTarget: g?.target != null ? Number(g.target) : null, goalBudget: g?.budget != null ? Number(g.budget) : null, threshold,
     });
     const type = k.type as CampaignType;
+    const st = String(k.effective_status || k.status || "");
+    if (st && st !== "ACTIVE") {
+      // stopped on purpose: context only, never judged
+      return { name: k.name, type: TYPE_LABEL[type], status: "STOPPED", stopped: true, spend: r2(spend), results: result,
+        goal: g?.target != null ? Number(g.target) : null };
+    }
     const cpr = cprValue(type, spend, result);
     const prevCpr = pr ? cprValue(type, Number(pr.spend), Number(pr.results)) : null;
     const days = (daily || []).filter((d: any) => d.entity_id === k.id).map((d: any) => [d.day.slice(5), r2(Number(d.spend)), Number(d.results)]);
@@ -75,7 +81,9 @@ export async function buildContext(sb: SupabaseClient, clientId: string, periodS
       progress: p, lastDays_mmdd_spend_results: days,
       adsets: (sets || []).filter((s: any) => s.campaign_id === k.id).map((s: any) => {
         const x = (setRanges || []).find((r: any) => r.entity_id === s.id);
-        return x && Number(x.spend) > 0 ? { name: s.name, status: s.effective_status, spend: r2(Number(x.spend)), results: Number(x.results), cpr: cprValue(type, Number(x.spend), Number(x.results)) } : null;
+        if (!x || Number(x.spend) <= 0) return null;
+        if (s.effective_status && s.effective_status !== "ACTIVE") return { name: s.name, status: "STOPPED", stopped: true, spend: r2(Number(x.spend)), results: Number(x.results) };
+        return { name: s.name, status: s.effective_status, spend: r2(Number(x.spend)), results: Number(x.results), cpr: cprValue(type, Number(x.spend), Number(x.results)) };
       }).filter(Boolean),
       breakdown,
     };
@@ -84,7 +92,7 @@ export async function buildContext(sb: SupabaseClient, clientId: string, periodS
   // Live day-by-day numbers per ad set / ad (only the campaigns that spent); never saved
   let liveDaily: any = null;
   if (from && c.ad_account_id) {
-    const spent = new Set((campaigns as any[]).map((x) => x.name));
+    const spent = new Set((campaigns as any[]).filter((x) => !x.stopped).map((x) => x.name));
     const list = (camps || []).filter((k: any) => spent.has(k.name)).map((k: any) => ({ meta_id: String(k.meta_id), name: k.name as string, type: k.type as CampaignType }));
     if (list.length) {
       try { liveDaily = await liveBreakdown(c.ad_account_id, { from, to: now }, prev, list); } catch { liveDaily = null; }

@@ -99,10 +99,10 @@ export default function BreakdownPanel({ campaigns: allCampaigns, adsets: allAds
       const rs = breakdown.filter((b) => b.entityId === id && b.dimension === "platform");
       return rs.reduce((s, r) => s + r.leads, 0);
     };
-    const mk = (name: string, type: string, x: { spend: number; results: number; impressions: number; clicks: number; reach: number; follows: number }, id: string, sub = false) => {
+    const mk = (name: string, type: string, x: { spend: number; results: number; impressions: number; clicks: number; reach: number; follows: number }, id: string, sub = false, stopped = false) => {
       const isReach = type === "reach";
       return {
-        id, name, sub, spend: x.spend, results: x.results, reach: x.reach, leads: leadsOf(id), follows: x.follows,
+        id, name, sub, stopped, spend: x.spend, results: x.results, reach: x.reach, leads: leadsOf(id), follows: x.follows,
         cpr: x.results > 0 ? (isReach ? (x.spend / x.results) * 1000 : x.spend / x.results) : null,
         cpm: x.impressions > 0 ? (x.spend / x.impressions) * 1000 : null,
         ctr: x.impressions > 0 ? (x.clicks / x.impressions) * 100 : null,
@@ -110,8 +110,8 @@ export default function BreakdownPanel({ campaigns: allCampaigns, adsets: allAds
     };
     const c = campaigns.find((k) => k.id === ent);
     if (c) {
-      return [mk(c.name, c.type, { spend: c.spend, results: c.result, impressions: c.impressions, clicks: c.clicks, reach: c.reach, follows: c.follows }, c.id),
-        ...adsets.filter((a) => a.campaignId === c.id && a.spend > 0).map((a) => mk(a.name, c.type, { spend: a.spend, results: a.results, impressions: a.impressions, clicks: a.clicks, reach: a.reach, follows: a.follows }, a.id, true))];
+      return [mk(c.name, c.type, { spend: c.spend, results: c.result, impressions: c.impressions, clicks: c.clicks, reach: c.reach, follows: c.follows }, c.id, false, !!c.status && c.status !== "ACTIVE"),
+        ...adsets.filter((a) => a.campaignId === c.id && a.spend > 0).map((a) => mk(a.name, c.type, { spend: a.spend, results: a.results, impressions: a.impressions, clicks: a.clicks, reach: a.reach, follows: a.follows }, a.id, true, !!a.effectiveStatus && a.effectiveStatus !== "ACTIVE"))];
     }
     const a = adsets.find((x) => x.id === ent);
     const parent = a && campaigns.find((k) => k.id === a.campaignId);
@@ -131,8 +131,8 @@ export default function BreakdownPanel({ campaigns: allCampaigns, adsets: allAds
         <div className="pbar">
           <select value={ent} onChange={(e) => setEnt(e.target.value)}>
             {allCampaigns.map((c) => (
-              [<option key={c.id} value={c.id}>{c.name}</option>,
-               ...allAdsets.filter((a) => a.campaignId === c.id && a.spend > 0).map((a) => <option key={a.id} value={a.id}>&nbsp;&nbsp;↳ {a.name}</option>)]
+              [<option key={c.id} value={c.id}>{c.name}{c.status && c.status !== "ACTIVE" ? " · stopped" : ""}</option>,
+               ...allAdsets.filter((a) => a.campaignId === c.id && a.spend > 0).map((a) => <option key={a.id} value={a.id}>&nbsp;&nbsp;↳ {a.name}{a.effectiveStatus && a.effectiveStatus !== "ACTIVE" ? " · stopped" : ""}</option>)]
             ))}
           </select>
           <span style={{ marginLeft: 12 }}><WatchButton level={allCampaigns.some((c) => c.id === ent) ? "campaign" : "adset"} dbId={ent} /></span>
@@ -158,8 +158,8 @@ export default function BreakdownPanel({ campaigns: allCampaigns, adsets: allAds
               <thead><tr><th>Name</th><th>Spend</th><th>Results</th><th>CPR</th><th>Reach</th><th>CPM</th><th>CTR</th><th>Leads</th><th>Follows</th></tr></thead>
               <tbody>
                 {summary.map((r) => (
-                  <tr key={r.id}>
-                    <td style={r.sub ? { paddingLeft: 22, color: "var(--t2)" } : { fontWeight: 700 }}>{r.sub ? "↳ " : ""}{r.name}</td>
+                  <tr key={r.id} style={r.stopped ? { opacity: 0.55 } : undefined}>
+                    <td style={r.sub ? { paddingLeft: 22, color: "var(--t2)" } : { fontWeight: 700 }}>{r.sub ? "↳ " : ""}{r.name}{r.stopped && <span className="chip mute" style={{ marginLeft: 8 }}>Stopped</span>}</td>
                     <td>{money(r.spend)}</td><td>{num(r.results)}</td>
                     <td>{r.cpr === null ? "—" : "$" + (r.cpr < 0.01 ? r.cpr.toFixed(3) : r.cpr.toFixed(2)) + (info?.type === "reach" ? " /1K" : "")}</td>
                     <td>{num(r.reach)}</td><td>{r.cpm === null ? "—" : "$" + r.cpm.toFixed(2)}</td><td>{r.ctr === null ? "—" : r.ctr.toFixed(2) + "%"}</td><td>{num(r.leads)}</td><td>{num(r.follows)}</td>

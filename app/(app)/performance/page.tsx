@@ -90,7 +90,8 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       }));
       const cprNow = cprValue(k.type, spend, result);
       const prevCprV = pr ? cprValue(k.type, Number(pr.spend), Number(pr.results)) : null;
-      const findings = diagnose({
+      const isStopped = !!(k.effective_status || k.status) && (k.effective_status || k.status) !== "ACTIVE";
+      const findings = isStopped ? [] : diagnose({
         type: k.type, effectiveStatus: k.effective_status || k.status || "", spend, result,
         cpr: cprNow, prevCpr: prevCprV, frequency: cur?.frequency != null ? Number(cur.frequency) : null,
         progress, goalBudget: g?.budget != null ? Number(g.budget) : null, costLimit: Number((client as any).alert_limits?.[k.type]) || null,

@@ -193,7 +193,7 @@ export default function PerformanceView(props: {
                 <>
                   <div className="v">{num(picked.result)}{picked.progress.target ? <small> / {num(picked.progress.target)}</small> : null}</div>
                   <div className="bar"><i style={{ width: `${Math.min(100, picked.progress.pct || 0)}%` }} /></div>
-                  <div className="n">{chip(picked.progress.status, true)} {picked.progress.pct !== null ? `${Math.round(picked.progress.pct)}%` : ""}</div>
+                  <div className="n">{picked.status && picked.status !== "ACTIVE" ? <span className="chip mute">Stopped</span> : chip(picked.progress.status, true)} {picked.progress.pct !== null ? `${Math.round(picked.progress.pct)}%` : ""}</div>
                 </>
               ) : (
                 <div style={{ marginTop: 6 }}>
@@ -309,12 +309,13 @@ export default function PerformanceView(props: {
               <div className="plist">
                 {campaigns.map((c) => {
                   const p = c.progress;
-                  const bad = p.status === "late" || p.status === "missed";
+                  const stopped = !!c.status && c.status !== "ACTIVE";
+                  const bad = !stopped && (p.status === "late" || p.status === "missed");
                   return (
                     <div className={`prow ${c.id === sel ? "on" : ""}`} key={c.id} onClick={() => setSel(c.id === sel ? "all" : c.id)}>
                       <div className="top">
                         <div className="nm" title={c.name}>{c.name}<span className="tp">{TYPE_LABEL[c.type]}</span></div>
-                        {chip(p.status, true)}
+                        {stopped ? <span className="chip mute">Stopped</span> : chip(p.status, true)}
                       </div>
                       <div className="bar"><i style={{ width: `${Math.min(100, p.pct || 0)}%`, background: bad ? "var(--red)" : undefined }} /></div>
                       <div className="meta">
@@ -325,7 +326,7 @@ export default function PerformanceView(props: {
                           <span style={{ marginLeft: 12 }}><WatchButton level="campaign" dbId={c.id} /></span>
                         </span>
                       </div>
-                      {!p.target && <div className="src">No target set</div>}
+                      {!p.target && !stopped && <div className="src">No target set</div>}
                     </div>
                   );
                 })}

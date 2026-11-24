@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { analyzeClient } from "@/app/(app)/ai/actions";
+import { saveTask } from "@/app/(app)/tasks/actions";
 import type { AiReport } from "@/lib/ai-report";
 
 const DOT = { bad: "var(--red)", warn: "var(--orange)", good: "var(--green)" } as const;
@@ -9,7 +10,15 @@ export default function AiPanel({ clientId, periodStart }: { clientId: string; p
   const [q, setQ] = useState("");
   const [out, setOut] = useState<{ ok: boolean; text: string; report?: AiReport } | null>(null);
   const [pending, start] = useTransition();
-  const go = (question: string) => start(async () => { setOut(null); setOut(await analyzeClient(clientId, question, periodStart)); });
+  const [added, setAdded] = useState<Record<number, boolean>>({});
+  const [busy, setBusy] = useState<number | null>(null);
+  const addTask = async (i: number, title: string) => {
+    setBusy(i);
+    const r = await saveTask({ title, priority: "med", client_id: clientId, due_date: "" });
+    setBusy(null);
+    if (r.ok) setAdded((m) => ({ ...m, [i]: true }));
+  };
+  const go = (question: string) => start(async () => { setOut(null); setAdded({}); setOut(await analyzeClient(clientId, question, periodStart)); });
 
   return (
     <div className="panel" style={{ marginTop: 14 }}>
@@ -35,7 +44,11 @@ export default function AiPanel({ clientId, periodStart }: { clientId: string; p
           {out.report.actions.length > 0 && (
             <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
               <div className="sub" style={{ marginBottom: 6, fontWeight: 700 }}>Do now</div>
-              {out.report.actions.map((a, i) => <div key={i} style={{ display: "flex", gap: 10, marginBottom: 6 }}><b style={{ color: "var(--blue2)" }}>{i + 1}</b><span>{a}</span></div>)}
+              {out.report.actions.map((a, i) => <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "flex-start" }}>
+                <b style={{ color: "var(--blue2)" }}>{i + 1}</b><span style={{ flex: 1 }}>{a}</span>
+                <button className="btn" type="button" disabled={added[i] || busy === i} onClick={() => addTask(i, a)} aria-label="Add to tasks"
+                  style={{ padding: "2px 10px", minWidth: 36, lineHeight: 1.4, color: added[i] ? "var(--t2)" : undefined }}>{added[i] ? "✓" : busy === i ? "…" : "+"}</button>
+              </div>)}
             </div>
           )}
         </div>
